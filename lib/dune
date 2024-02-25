@@ -1,0 +1,5 @@
+(library
+ (name rubiks_cube)
+ (libraries csv str unix threads))
+
+(include_subdirs unqualified)

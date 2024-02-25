@@ -1,0 +1,5 @@
+(executable
+ (public_name rubiks_cube)
+ (name main)
+ (preprocess (pps ppx_show))
+ (libraries rubiks_cube ppx_show.runtime lablgtk3 str))
