@@ -44,7 +44,7 @@ let load_byte_array (file: string) (len: int): int array =
   array
 
 
-let flipslicesorted_twist_depth3 =
+let load_flipslicesorted_twist_depth3 () =
   (* Create/load the flipslicesorted_twist_depth3 pruning table, 24x the phase1 table of the two-phase alg. *)
   let total = SMoves._N_FLIPSLICESORTED_CLASS * SMoves._N_TWIST in
   let fname = "phase1x24_prun" in
@@ -52,7 +52,7 @@ let flipslicesorted_twist_depth3 =
   load_uint32_array fname (total / 16 + 1)
 
 
-let corner_depth =
+let load_corner_depth () =
   (* Create/load the corner_depth pruning table. Entry gives the number of moves which are at least necessary
   to restore the corners. *)
   let fname = "cornerprun" in
@@ -77,7 +77,7 @@ let distance =
   done;
   a
 
-let get_flipslicesorted_twist_depth3 ix =
+let get_flipslicesorted_twist_depth3 flipslicesorted_twist_depth3 ix =
   (* get_fsst_depth3(ix) is *exactly* the number of moves % 3 to solve phase1x24 of a cube with index ix *)
   let y = flipslicesorted_twist_depth3.(ix / 16) in
   let y = y lsr ((ix mod 16) * 2) in

@@ -47,7 +47,7 @@ let load_shorts_array (file: string) (len: int): int array =
   close_in fh;
   array
 
-let twist_move =
+let load_twist_move () =
   (*  The twist coordinate describes the 3^7 = 2187 possible orientations of the 8 corners *)
   (*  0 <= twist < 2187 *)
   let fname = "move_twist" in
@@ -56,7 +56,7 @@ let twist_move =
 
 (*  ####################################  Move table for the flip of the edges. ########################################## *)
 
-let flip_move =
+let load_flip_move () =
   (*  The flip coordinate describes the 2^11 = 2048 possible orientations of the 12 edges *)
   (*  0 <= flip < 2048 *)
   let fname = "move_flip" in
@@ -65,7 +65,7 @@ let flip_move =
 
 (*  ###################### Move table for the four UD-slice edges FR, FL, Bl and BR. ##################################### *)
 
-let slice_sorted_move =
+let load_slice_sorted_move () =
   (*  The slice_sorted coordinate describes the 12!/8! = 11880 possible positions of the FR, FL, BL and BR edges. *)
   (*  0 <= slice_sorted < 11880 *)
   let fname = "move_slice_sorted" in
@@ -74,7 +74,7 @@ let slice_sorted_move =
   
 (*  ########################################## Move table for the corners. ############################################### *)
 
-let corners_move =
+let load_corners_move () =
   (*  The corners coordinate describes the 8! = 40320 permutations of the corners. *)
   (*  0 <= corners < 40320 *)
   let fname = "move_corners" in

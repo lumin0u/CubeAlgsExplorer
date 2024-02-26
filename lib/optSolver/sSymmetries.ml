@@ -31,13 +31,13 @@ let load_shorts_array (file: string) (len: int): int array =
   close_in fh;
   array
   
-let conj_move =
+let load_conj_move () =
     let fname = "conj_move" in
     print_endline ("loading " ^ fname ^ " table...");
     load_shorts_array fname (SMoves._N_MOVE * SMoves._N_SYM)
 
 (*  ###### Generate table for the conjugation of the twist t by a symmetry s. twist_conj[t, s] = s*t*s^-1 #### *)
-let twist_conj =
+let load_twist_conj () =
     let fname = "conj_twist" in
     print_endline ("loading " ^ fname ^ " table...");
     load_shorts_array fname (SMoves._N_TWIST * SMoves._N_SYM_D4h)
@@ -45,7 +45,9 @@ let twist_conj =
 (*  ###################################################################################################################### *)
 
 (*  ############## Generate the tables to handle the symmetry reduced flip-slicesorted coordinate ######################## *)
-let flipslicesorted_classidx, flipslicesorted_sym, flipslicesorted_rep =
+(* let flipslicesorted_classidx, flipslicesorted_sym, flipslicesorted_rep = *)
+
+let load_flipslicesorted_tables () =
     let fname1 = "fs24_classidx"
     and fname2 = "fs24_sym"
     and fname3 = "fs24_rep" in

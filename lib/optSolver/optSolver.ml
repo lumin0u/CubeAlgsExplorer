@@ -30,13 +30,6 @@ type search = {
   on_find : e_alg -> unit;
 }
 
-let create_search depth_max on_find = {
-  sofar = [];
-  solutions = [];
-  depth_max = depth_max;
-  on_find = on_find;
-}
-
 let ordinal_e_move (m: e_move): int =
   match m with
   | U -> 0 | R -> 1 | F -> 2 | D -> 3 | L -> 4 | B -> 5
@@ -73,7 +66,24 @@ let id_cc = {
   _FB_dist = 0;
 }
 
+let tables = ref None
+
+let load_tables () =
+  match !tables with
+  | Some tables -> tables
+  | None ->
+    let value = (load_conj_move (), load_corner_depth (),
+    load_corners_move (), load_flip_move (), load_flipslicesorted_tables (),
+    load_flipslicesorted_twist_depth3 (), load_slice_sorted_move (), load_twist_conj (),
+    load_twist_move ()) in
+    tables := Some value;
+    value
+
 let next (cc: cube_comp) ((m, n): e_move * int): cube_comp * int =
+  let (conj_move, corner_depth,
+  corners_move, flip_move, (flipslicesorted_classidx, flipslicesorted_sym, flipslicesorted_rep),
+  flipslicesorted_twist_depth3, slice_sorted_move, twist_conj,
+  twist_move) = load_tables () in
   let h = ref 0 in
   let _UD_flip = cc._UD_flip in
   let _RL_flip = cc._RL_flip in
@@ -104,7 +114,7 @@ let next (cc: cube_comp) ((m, n): e_move * int): cube_comp * int =
   let fs_idx = flipslicesorted_classidx.(fs) in  (*  index of representant *)
   let fs_sym = flipslicesorted_sym.(fs) in  (*  symmetry *)
 
-  let _UD_dist1_mod3 = get_flipslicesorted_twist_depth3
+  let _UD_dist1_mod3 = get_flipslicesorted_twist_depth3 flipslicesorted_twist_depth3
       (_N_TWIST * fs_idx + twist_conj.((_UD_twist1 lsl 4) + fs_sym)) in
   let _UD_dist1 = distance.(3 * _UD_dist + _UD_dist1_mod3) in
 
@@ -121,7 +131,7 @@ let next (cc: cube_comp) ((m, n): e_move * int): cube_comp * int =
   let fs_idx = flipslicesorted_classidx.(fs) in
   let fs_sym = flipslicesorted_sym.(fs) in
 
-  let _RL_dist1_mod3 = get_flipslicesorted_twist_depth3
+  let _RL_dist1_mod3 = get_flipslicesorted_twist_depth3 flipslicesorted_twist_depth3
       (_N_TWIST * fs_idx + twist_conj.((_RL_twist1 lsl 4) + fs_sym)) in
   let _RL_dist1 = distance.(3 * _RL_dist + _RL_dist1_mod3) in
 
@@ -137,7 +147,7 @@ let next (cc: cube_comp) ((m, n): e_move * int): cube_comp * int =
   let fs_idx = flipslicesorted_classidx.(fs) in
   let fs_sym = flipslicesorted_sym.(fs) in
 
-  let _FB_dist1_mod3 = get_flipslicesorted_twist_depth3
+  let _FB_dist1_mod3 = get_flipslicesorted_twist_depth3 flipslicesorted_twist_depth3
       (_N_TWIST * fs_idx + twist_conj.((_FB_twist1 lsl 4) + fs_sym)) in
   let _FB_dist1 = distance.(3 * _FB_dist + _FB_dist1_mod3) in
 
@@ -167,6 +177,13 @@ let cc_dist_of (cube: cube): cube_comp * int =
   let alg = parse_e_alg (String.sub line 0 (String.index line '(')) in
   List.fold_left (fun (cc, _) m -> next cc m) (id_cc, 0) alg
 
+
+let create_search depth_max on_find = {
+  sofar = [];
+  solutions = [];
+  depth_max = depth_max;
+  on_find = on_find;
+}
 
 let rec search (self: search) (cc: cube_comp) (togo: int) =
   if togo = 0 then
