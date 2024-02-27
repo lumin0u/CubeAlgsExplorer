@@ -35,24 +35,59 @@ let _N_SYM = 48  (*  number of cube symmetries of full group Oh *)
 let _N_SYM_D4h = 16  (*  Number of symmetries of subgroup D4h *)
 
 
-(*  ######################################### Move table for the twists of the corners. ################################## *)
-let load_shorts_array (file: string) (len: int): int array =
+let load_uint16_array (file: string) (len: int): int array =
   let fh = open_in_bin file in
   let buf = Bytes.create (len * 2) in
   let _ = input fh buf 0 (len * 2) / 2 in
   let array = Array.make len 0 in
   for i = 0 to len - 1 do
-    array.(i) <- Bytes.get_uint8 buf (i * 2) + 256 * Bytes.get_uint8 buf (i * 2 + 1);
+    array.(i) <- Bytes.get_uint16_le buf (i * 2);
   done;
   close_in fh;
   array
+
+let load_uint32_array (file: string) (len: int): floatarray =
+  let fh = open_in_bin file in
+  let buf = Bytes.create (len * 4) in
+  let _ = input fh buf 0 (len * 4) / 4 in
+  let array = Float.Array.create len in
+  for i = 0 to len - 1 do
+    Float.Array.set array i (Int32.float_of_bits (Bytes.get_int32_le buf (i * 4)));
+  done;
+  close_in fh;
+  array
+
+let load_uint8_array (file: string) (len: int): int array =
+  let fh = open_in_bin file in
+  let buf = Bytes.create (len * 1) in
+  let _ = input fh buf 0 (len * 1) / 1 in
+  let array = Array.make len 0 in
+  for i = 0 to len - 1 do
+    array.(i) <- Bytes.get_uint8 buf (i * 1);
+  done;
+  close_in fh;
+  array
+
+let load_int8_array (file: string) (len: int): int array =
+  let fh = open_in_bin file in
+  let buf = Bytes.create (len * 1) in
+  let _ = input fh buf 0 (len * 1) / 1 in
+  let array = Array.make len 0 in
+  for i = 0 to len - 1 do
+    array.(i) <- Bytes.get_int8 buf (i * 1);
+  done;
+  close_in fh;
+  array
+  
+
+(*  ######################################### Move table for the twists of the corners. ################################## *)
 
 let load_twist_move () =
   (*  The twist coordinate describes the 3^7 = 2187 possible orientations of the 8 corners *)
   (*  0 <= twist < 2187 *)
   let fname = "move_twist" in
   print_endline ("loading " ^ fname ^ " table...");
-  load_shorts_array fname (_N_TWIST * _N_MOVE)
+  load_uint16_array fname (_N_TWIST * _N_MOVE)
 
 (*  ####################################  Move table for the flip of the edges. ########################################## *)
 
@@ -61,7 +96,7 @@ let load_flip_move () =
   (*  0 <= flip < 2048 *)
   let fname = "move_flip" in
   print_endline ("loading " ^ fname ^ " table...");
-  load_shorts_array fname (_N_FLIP * _N_MOVE)
+  load_uint16_array fname (_N_FLIP * _N_MOVE)
 
 (*  ###################### Move table for the four UD-slice edges FR, FL, Bl and BR. ##################################### *)
 
@@ -70,7 +105,7 @@ let load_slice_sorted_move () =
   (*  0 <= slice_sorted < 11880 *)
   let fname = "move_slice_sorted" in
   print_endline ("loading " ^ fname ^ " table...");
-  load_shorts_array fname (_N_SLICE_SORTED * _N_MOVE)
+  load_uint16_array fname (_N_SLICE_SORTED * _N_MOVE)
   
 (*  ########################################## Move table for the corners. ############################################### *)
 
@@ -79,4 +114,4 @@ let load_corners_move () =
   (*  0 <= corners < 40320 *)
   let fname = "move_corners" in
   print_endline ("loading " ^ fname ^ " table...");
-  load_shorts_array fname (_N_CORNERS * _N_MOVE)
+  load_uint16_array fname (_N_CORNERS * _N_MOVE)

@@ -48,7 +48,7 @@ module IntSet = Set.Make(Int)
 (** THOSE ALGS ARE REVERTED *)
 let output_maneuver_times
     ?(verbose = false)
-    (depth: int)
+    (time_depth: float)
     (file: out_channel)
     (move_times: (handed_move, float) Hashtbl.t)
     : unit =
@@ -90,19 +90,19 @@ let output_maneuver_times
   let cube_rots = Array.make 24 [||] in
   cube_rots.(0) <- id_rot ();
 
-  let alg_count = (pow 18 (depth + 1) - 1) / 17 in
+  let alg_count = (pow 18 (int_of_float (time_depth *. 9.) + 1) - 1) / 17 in
   let explored = ref IntSet.empty in
   let algs_explored = ref IntSet.empty in
 
   let ser_alg (alg: e_alg): int =
-    List.fold_left (fun acc (m, n) -> (ordinal_e_move m) * 3 + n + acc * 18) 0 alg
+    List.fold_left (fun acc (m, n) -> (ordinal_e_move m) * 3 + n mod 4 - 1 + acc * 18) 0 alg
   in
   let deser_alg (ser: int): e_alg =
     let rec f (ser: int) (acc: e_alg): e_alg =
       if ser = 0 then acc
       else
         let s = (ser - 1) mod 18 in
-        f (ser / 18) ((e_move_from_ordinal (s / 3), s mod 3)::acc)
+        f (ser / 18) ((e_move_from_ordinal (s / 3), s mod 3 + 1)::acc)
     in f ser []
   in
   let ser_pos ((h1, h2): hand_pos) (alg: e_alg): int =
@@ -112,9 +112,8 @@ let output_maneuver_times
     let hp = (hpos_from_ordinal ((ser land 0b111000) lsr 3), hpos_from_ordinal (ser land 0b111)) in
     hp, deser_alg (ser lsr 6)
   in
-  let log_18 = log 18. in
   let cost (t, alg_ser, _, _) =
-    t -. min_time *. ceil (log (alg_ser lsr 6 |> float_of_int) /. log_18)
+    t
   in
 
   let frontier = ref (
@@ -136,7 +135,7 @@ let output_maneuver_times
     explored_time := time;
     let cube_rot = cube_rots.(cube_rot_i) in
     let hand_pos, alg = deser_pos ser in
-    if not (List.length alg > depth || IntSet.mem ser !explored) then
+    if not (time > time_depth || IntSet.mem ser !explored) then
       begin
         Hashtbl.find move_times_dict (hand, hand_pos)
         |> List.iter (fun (m, h2, t, e_m) ->
@@ -178,11 +177,11 @@ let output_maneuver_times
   seek_out file 0;
   output_binary_int file !i
 
-let create_table ?(verbose = true) ?(depth = 5) (name: string) (prof: profile): unit =
+let create_table ?(verbose = true) ?(time_depth = 1.) (name: string) (prof: profile): unit =
   let move_times = load_move_times prof in
   let filename = "maneuver_dur_table_" ^ name ^ ".dat" in
   let file = open_out filename in
-  output_maneuver_times ~verbose depth file move_times;
+  output_maneuver_times ~verbose time_depth file move_times;
   close_out file;
   print_endline "\ndone !"
 
@@ -212,8 +211,8 @@ let load_table (name: string): (e_alg, float) Hashtbl.t * float =
   tbl, max_time
 
 
-let test_create depth =
-  create_table "default" ~depth (load_profile "default" |> Option.get)
+let test_create time_depth =
+  create_table "default" ~time_depth (load_profile "default" |> Option.get)
 
 let test_load () =
   load_table "default"

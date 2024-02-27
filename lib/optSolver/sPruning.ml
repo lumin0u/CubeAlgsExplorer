@@ -21,35 +21,12 @@
 (*  ##################### The pruning tables cut the search tree during the search. ###################################### *)
 (*  ############ The pruning values are stored modulo 3 which saves a lot of memory. ##################################### *)
 
-let load_uint32_array (file: string) (len: int): int array =
-  let fh = open_in_bin file in
-  let buf = Bytes.create (len * 4) in
-  let _ = input fh buf 0 (len * 4) / 4 in
-  let array = Array.make len 0 in
-  for i = 0 to len - 1 do
-    array.(i) <- Bytes.get_uint8 buf (i * 4) + 256 * Bytes.get_uint8 buf (i * 4 + 1) + 256 * 256 * Bytes.get_uint8 buf (i * 4 + 2) + 256 * 256 * 256 * Bytes.get_uint8 buf (i * 4 + 3);
-  done;
-  close_in fh;
-  array
-
-let load_byte_array (file: string) (len: int): int array =
-  let fh = open_in_bin file in
-  let buf = Bytes.create (len * 1) in
-  let _ = input fh buf 0 (len * 1) / 1 in
-  let array = Array.make len 0 in
-  for i = 0 to len - 1 do
-    array.(i) <- Bytes.get_uint8 buf (i * 1);
-  done;
-  close_in fh;
-  array
-
-
 let load_flipslicesorted_twist_depth3 () =
   (* Create/load the flipslicesorted_twist_depth3 pruning table, 24x the phase1 table of the two-phase alg. *)
   let total = SMoves._N_FLIPSLICESORTED_CLASS * SMoves._N_TWIST in
   let fname = "phase1x24_prun" in
   print_endline ("loading " ^ fname ^ " table...");
-  load_uint32_array fname (total / 16 + 1)
+  SMoves.load_uint32_array fname (total / 16 + 1)
 
 
 let load_corner_depth () =
@@ -57,7 +34,7 @@ let load_corner_depth () =
   to restore the corners. *)
   let fname = "cornerprun" in
   print_endline ("loading " ^ fname ^ " table...");
-  load_byte_array fname (SMoves._N_CORNERS)
+  SMoves.load_int8_array fname (SMoves._N_CORNERS)
 
 
 (*  # array distance computes the new distance from the old_distance i and the new_distance_mod3 j. ###################### *)
@@ -79,9 +56,9 @@ let distance =
 
 let get_flipslicesorted_twist_depth3 flipslicesorted_twist_depth3 ix =
   (* get_fsst_depth3(ix) is *exactly* the number of moves % 3 to solve phase1x24 of a cube with index ix *)
-  let y = flipslicesorted_twist_depth3.(ix / 16) in
-  let y = y lsr ((ix mod 16) * 2) in
-  y land 3
+  let y = Int32.bits_of_float (Float.Array.get flipslicesorted_twist_depth3 (ix / 16)) in
+  let y = Int32.shift_right y ((ix mod 16) * 2) in
+  (Int32.to_int y) land 3
 
 
 (*

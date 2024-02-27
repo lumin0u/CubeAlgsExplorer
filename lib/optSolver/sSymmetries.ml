@@ -19,28 +19,17 @@
  *)
 
 (*  #################### Symmetry related functions. Symmetry considerations increase the performance of the solver.###### *)
-
-let load_shorts_array (file: string) (len: int): int array =
-  let fh = open_in_bin file in
-  let buf = Bytes.create (len * 2) in
-  let _ = input fh buf 0 (len * 2) / 2 in
-  let array = Array.make len 0 in
-  for i = 0 to len - 1 do
-    array.(i) <- Bytes.get_uint8 buf (i * 2) + 256 * Bytes.get_uint8 buf (i * 2 + 1);
-  done;
-  close_in fh;
-  array
   
 let load_conj_move () =
     let fname = "conj_move" in
     print_endline ("loading " ^ fname ^ " table...");
-    load_shorts_array fname (SMoves._N_MOVE * SMoves._N_SYM)
+    SMoves.load_uint16_array fname (SMoves._N_MOVE * SMoves._N_SYM)
 
 (*  ###### Generate table for the conjugation of the twist t by a symmetry s. twist_conj[t, s] = s*t*s^-1 #### *)
 let load_twist_conj () =
     let fname = "conj_twist" in
     print_endline ("loading " ^ fname ^ " table...");
-    load_shorts_array fname (SMoves._N_TWIST * SMoves._N_SYM_D4h)
+    SMoves.load_uint16_array fname (SMoves._N_TWIST * SMoves._N_SYM_D4h)
 
 (*  ###################################################################################################################### *)
 
@@ -54,8 +43,8 @@ let load_flipslicesorted_tables () =
 
     print_endline ("loading " ^ "flipslicesorted sym-tables...");
 
-    load_shorts_array fname1 (SMoves._N_FLIP * SMoves._N_SLICE_SORTED),
-    load_shorts_array fname2 (SMoves._N_FLIP * SMoves._N_SLICE_SORTED),
-    load_shorts_array fname3 (SMoves._N_FLIPSLICESORTED_CLASS)
+    SMoves.load_uint32_array fname1 (SMoves._N_FLIP * SMoves._N_SLICE_SORTED),
+    SMoves.load_uint8_array fname2 (SMoves._N_FLIP * SMoves._N_SLICE_SORTED),
+    SMoves.load_uint32_array fname3 (SMoves._N_FLIPSLICESORTED_CLASS)
 
 (* ####################################################################################################################### *)

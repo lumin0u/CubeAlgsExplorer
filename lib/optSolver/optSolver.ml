@@ -19,22 +19,19 @@
  *)
 
 open Algorithm
+open AlgEvaluatorElem
 open SMoves
 open SPruning
 open SSymmetries
+open CuberProfile
 
-type search = {
-  mutable sofar : e_alg;
-  mutable solutions : e_alg list;
-  depth_max : int;
-  on_find : e_alg -> unit;
-}
+type maneuver = CuberProfile.maneuver
 
 let ordinal_e_move (m: e_move): int =
   match m with
   | U -> 0 | R -> 1 | F -> 2 | D -> 3 | L -> 4 | B -> 5
 
-type cube_comp = {
+type coord_cube = {
   _UD_flip: int;
   _RL_flip: int;
   _FB_flip: int;
@@ -50,7 +47,7 @@ type cube_comp = {
   _FB_dist: int;
 }
 
-let id_cc = {
+let solved_cc = {
   _UD_flip = 0;
   _RL_flip = 0;
   _FB_flip = 0;
@@ -79,7 +76,11 @@ let load_tables () =
     tables := Some value;
     value
 
-let next (cc: cube_comp) ((m, n): e_move * int): cube_comp * int =
+(** does not work somehow *)
+let next1 (cc: coord_cube) ((m, n): e_move * int): coord_cube * int =
+  let python_array_access array i =
+    array.(if i < 0 then Array.length array + i else i)
+  in
   let (conj_move, corner_depth,
   corners_move, flip_move, (flipslicesorted_classidx, flipslicesorted_sym, flipslicesorted_rep),
   flipslicesorted_twist_depth3, slice_sorted_move, twist_conj,
@@ -111,12 +112,12 @@ let next (cc: cube_comp) ((m, n): e_move * int): cube_comp * int =
 
   let fs = _N_FLIP * _UD_slice_sorted1 + _UD_flip1 in  (*  raw new flip_slicesorted coordinate *)
   (*  now representation as representant-symmetry pair *)
-  let fs_idx = flipslicesorted_classidx.(fs) in  (*  index of representant *)
+  let fs_idx = Int32.bits_of_float (Float.Array.get flipslicesorted_classidx fs) in
   let fs_sym = flipslicesorted_sym.(fs) in  (*  symmetry *)
 
   let _UD_dist1_mod3 = get_flipslicesorted_twist_depth3 flipslicesorted_twist_depth3
-      (_N_TWIST * fs_idx + twist_conj.((_UD_twist1 lsl 4) + fs_sym)) in
-  let _UD_dist1 = distance.(3 * _UD_dist + _UD_dist1_mod3) in
+      (_N_TWIST * Int32.to_int fs_idx + twist_conj.((_UD_twist1 lsl 4) + fs_sym)) in
+  let _UD_dist1 = python_array_access distance (3 * _UD_dist + _UD_dist1_mod3) in
 
   h := max !h _UD_dist1;
   
@@ -128,12 +129,12 @@ let next (cc: cube_comp) ((m, n): e_move * int): cube_comp * int =
   let _RL_slice_sorted1 = slice_sorted_move.(_N_MOVE * _RL_slice_sorted + mrl) in
 
   let fs = _N_FLIP * _RL_slice_sorted1 + _RL_flip1 in
-  let fs_idx = flipslicesorted_classidx.(fs) in
+  let fs_idx = Int32.bits_of_float (Float.Array.get flipslicesorted_classidx fs) in
   let fs_sym = flipslicesorted_sym.(fs) in
 
   let _RL_dist1_mod3 = get_flipslicesorted_twist_depth3 flipslicesorted_twist_depth3
-      (_N_TWIST * fs_idx + twist_conj.((_RL_twist1 lsl 4) + fs_sym)) in
-  let _RL_dist1 = distance.(3 * _RL_dist + _RL_dist1_mod3) in
+      (_N_TWIST * Int32.to_int fs_idx + twist_conj.((_RL_twist1 lsl 4) + fs_sym)) in
+  let _RL_dist1 = python_array_access distance (3 * _RL_dist + _RL_dist1_mod3) in
 
   h := max !h _RL_dist1;
   (* ########################################################################################################### *)
@@ -144,22 +145,25 @@ let next (cc: cube_comp) ((m, n): e_move * int): cube_comp * int =
   let _FB_slice_sorted1 = slice_sorted_move.(_N_MOVE * _FB_slice_sorted + mfb) in
 
   let fs = _N_FLIP * _FB_slice_sorted1 + _FB_flip1 in
-  let fs_idx = flipslicesorted_classidx.(fs) in
+  let fs_idx = Int32.bits_of_float (Float.Array.get flipslicesorted_classidx fs) in
   let fs_sym = flipslicesorted_sym.(fs) in
 
   let _FB_dist1_mod3 = get_flipslicesorted_twist_depth3 flipslicesorted_twist_depth3
-      (_N_TWIST * fs_idx + twist_conj.((_FB_twist1 lsl 4) + fs_sym)) in
-  let _FB_dist1 = distance.(3 * _FB_dist + _FB_dist1_mod3) in
+      (_N_TWIST * Int32.to_int fs_idx + twist_conj.((_FB_twist1 lsl 4) + fs_sym)) in
+  let _FB_dist1 = python_array_access distance (3 * _FB_dist + _FB_dist1_mod3) in
 
   h := max !h _FB_dist1;
   (* ########################################################################################################### *)
   if _UD_dist1 <> 0 && _UD_dist1 = _RL_dist1 && _RL_dist1 = _FB_dist1
-  then h := max !h (_UD_dist1 + 1);  (*  impossible to reach subgroup H in togo - 1 moves *)
+  then h := max !h (_UD_dist1 + 1);  (*  due to design of coordinate *)
   {_UD_flip=_UD_flip1; _RL_flip=_RL_flip1; _FB_flip=_FB_flip1; _UD_twist=_UD_twist1; _RL_twist=_RL_twist1; _FB_twist=_FB_twist1; _UD_slice_sorted=_UD_slice_sorted1;
       _RL_slice_sorted=_RL_slice_sorted1; _FB_slice_sorted=_FB_slice_sorted1; corners=corners1; _UD_dist=_UD_dist1; _RL_dist=_RL_dist1; _FB_dist=_FB_dist1}, !h
 
 
-let cc_dist_of (cube: cube): cube_comp * int =
+let next (cc: coord_cube) (md: int) (alg: e_alg): coord_cube * int =
+  List.fold_left (fun (cc, _) m -> next1 cc m) (cc, md) alg
+
+let cc_dist_of (cube: cube): coord_cube * int =
   let addr = Unix.ADDR_INET (Unix.inet_addr_loopback, 8084) in
 
   let sock = Unix.(socket PF_INET SOCK_STREAM 0) in
@@ -175,41 +179,64 @@ let cc_dist_of (cube: cube): cube_comp * int =
   let line = input_line in_ch in
   Unix.close sock;
   let alg = parse_e_alg (String.sub line 0 (String.index line '(')) in
-  List.fold_left (fun (cc, _) m -> next cc m) (id_cc, 0) alg
+  next solved_cc 0 alg
 
 
-let create_search depth_max on_find = {
-  sofar = [];
-  solutions = [];
-  depth_max = depth_max;
-  on_find = on_find;
-}
-
-let rec search (self: search) (cc: cube_comp) (togo: int) =
-  if togo = 0 then
-    begin
-      if cc.corners = 0 then  (* slicesorte should all be 0 *)
-        begin
-          self.solutions <- self.sofar :: self.solutions;
-          self.on_find self.sofar
-        end
-      end
-
-  else
-    all_e_moves |> List.iter (fun (m, n) ->
-      match self.sofar with
+let rec vanilla_search_aux (cc: coord_cube) (togo: int) (sofar: e_alg): e_alg list =
+  print_newline ();
+  print_endline (e_alg_to_string sofar);
+  if togo < 0 then []
+  else if cc = solved_cc then
+    [List.rev sofar]
+  else if togo > 0 then
+    all_e_moves |> List.fold_left (fun acc (m, n) ->
+      match sofar with
       (*
       if len(self.sofar) > 0:
           diff = self.sofar[-1] // 3 - m // 3
           if diff in [0, 3]:  (*  successive moves on same face or on same axis with wrong order *)
             continue
       *)
-      | (x, _)::_ when (ordinal_e_move x - ordinal_e_move m) mod 3 = 0 -> ()
+      | (x, _)::_ when let v = ordinal_e_move x - ordinal_e_move m in v = 0 || v = 3 -> acc
       | _ ->
-        let cc1, h = next cc (m, n) in
-        if h >= togo then ()
-        else 
-        self.sofar <- (m, n)::self.sofar;
-        search self cc1 (togo - 1);
-        self.sofar <- List.tl self.sofar
-    )
+        let cc1, h = next1 cc (m, n) in
+        if h > togo then acc
+        else vanilla_search_aux cc1 (togo - 1) ((m, n)::sofar) @ acc
+    ) []
+  else []
+
+(** why would you do that ? *)
+let vanilla_search (depth_max: int) (cc: coord_cube) =
+  vanilla_search_aux cc depth_max []
+
+
+let my_search (move_times) (cc: coord_cube): (float * maneuver) list =
+  let min_t = Hashtbl.fold (fun (_, alg, _) t acc -> if alg = [] then acc else min acc t) move_times 500. in
+  print_endline "--------------------------------";
+  let rec aux (cc: coord_cube) (alpha: float ref) (sofar: e_alg): (float * maneuver) list =
+    if List.length sofar > 5 then []
+    else if cc = solved_cc then
+      begin
+        let t, man = fastest_maneuver move_times (List.rev sofar) (id_rot ()) (id_rot ()) in
+        alpha := t;
+        [(t, man)]
+      end
+    else
+      all_e_moves |> List.fold_left (fun acc (m, n) ->
+        match sofar with
+        | (x, _)::_ when let v = ordinal_e_move x - ordinal_e_move m in v = 0 || v = 3 -> acc
+        | _ ->
+          let cc1, h = next1 cc (m, n) in
+          if min_t *. float_of_int (List.length sofar + h) >= !alpha then acc
+          else aux cc1 alpha ((m, n)::sofar) @ acc
+      ) []
+  in
+  aux cc (ref 4.0) []
+
+
+let test_search alg =
+  my_search (load_profile "default" |> Option.get |> load_move_times) (next solved_cc 0 (parse_e_alg alg) |> fst)
+
+let test_search1 alg =
+  vanilla_search 2 (next solved_cc 0 (parse_e_alg alg) |> fst)
+
