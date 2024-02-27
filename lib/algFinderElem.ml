@@ -48,15 +48,38 @@ let fastest_maneuvers
       )
     |> List.of_seq
   in
-  let cc, init_dist = OptSolver.cc_dist_of cube in
 
-  (* on peut en faire des choses avec un cube en 5 secondes *)
-  let cost (t, _, cube, (cc, max_dist), _, _, _) =
-    t +. heuristic *. float_of_int max_dist
+  let positions_dist = Hashtbl.create 0 in
+
+  let addr = Unix.ADDR_INET (Unix.inet_addr_loopback, 8085) in
+
+  let sock = Unix.(socket PF_INET SOCK_STREAM 0) in
+  Unix.connect sock addr;
+  let in_ch = Unix.in_channel_of_descr sock
+  and out_ch = Unix.out_channel_of_descr sock in
+
+  let ask_timer = ref 0.0 in
+
+  let ask_dist (cube: cube): int =
+    match Hashtbl.find_opt positions_dist cube with
+    | Some d -> d
+    | None ->
+      let t = Sys.time () in
+      output_string out_ch (cube_to_str (realign cube |> fst) ^ "\n");
+      flush out_ch;
+      let res = input_line in_ch |> int_of_string in
+      Hashtbl.add positions_dist cube res;
+      ask_timer := !ask_timer +. (Sys.time () -. t);
+      res
   in
+  (* on peut en faire des choses avec un cube en 5 secondes *)
+  let cost (t, _, cube, dist, _, _, _) =
+    t +. heuristic *. float_of_int dist
+  in
+  let dist = ask_dist cube in
   let frontier = ref (
     cross [F] [F; U; D; Bu; Bd; M] @ cross [F; U; D; Bu; Bd; M] [F]
-    |> List.map (fun x -> (0.0, x, cube, (cc, init_dist), 0.0, []))
+    |> List.map (fun x -> (0.0, x, cube, dist, 0.0, []))
     |> cross_f (fun h (t, hp, cube, cc, t0, hist) -> (t, hp, cube, cc, t0, hist, h)) [R; L]
     |> List.fold_left (fun acc x -> PrioQueue.insert acc (cost x) x) PrioQueue.empty
     )
@@ -68,23 +91,26 @@ let fastest_maneuvers
     | None -> false
     | Some (ts, _, _, _, _, _, _) -> t >= ts
   in*)
+  let nodes = ref 0 in
   let start_date = if timeout > 0.0 then Sys.time () else 0.0 in
   while (!frontier <> Empty && !counter >= 0) && (timeout = 0.0 || Sys.time () -. start_date < timeout) do
+    incr nodes;
+    if !nodes mod 173 = 0 then
+      (print_int !nodes; print_string "   \r"; flush stdout);
     let my_cost, nearest, nfrontier = PrioQueue.extract !frontier in
-    let (time, hand_pos, cube, (cc, max_dist), time0, hist, hand) = nearest in
+    let (time, hand_pos, cube, dist, time0, hist, hand) = nearest in
     frontier := nfrontier;
     if is_solved_cube cube then
       shortests.(decr counter; !counter + 1) <- Some nearest
     else
       move_times
-      |> List.filter_map (fun (h1, m, h2, t, t0) ->
+      |> List.iter (fun (h1, m, h2, t, t0) ->
         let obv_bad =
           match hist with
           | (_, last_move, _)::_ -> is_regrip m && is_regrip last_move
           | _ -> is_regrip m
         in
-        if h1 <> hand_pos || obv_bad (*|| is_greater_than_shortest (t +. time)*) then None
-        else
+        if h1 = hand_pos && not obv_bad (*|| is_greater_than_shortest (t +. time)*) then
           let (hl1, hr1), (hl2, hr2) = h1, h2 in
           let nt = t +. (if (
             match hand with
@@ -94,22 +120,12 @@ let fastest_maneuvers
           )
            +. (if List.for_all (fun (m, _) -> List.exists (fun (_, a, _) -> List.exists (fun (m', _) -> m=m') a) hist) m then 0.0 else heuristic)
           in
-          let sent_alg = 
-            elementalize m (let _,r = cube in !r)
-            |> fst
-            |> List.stable_sort (fun (m1, _) (m2, _) -> compare_e_move m1 m2)
-          in
-          let cc, max_dist = List.fold_left (fun (cc, _) m ->
-              OptSolver.next cc m
-            ) (cc, max_dist) sent_alg
-          in
-          Some (m, h2, nt, t0, apply_alg cube m, cc, max_dist)
-      )
-      |> List.iter (fun (m, h2, t, t0, cube, cc, max_dist) ->
-        let me = (t +. time, h2, cube, (cc, max_dist), t0 +. time0, (hand_pos, m, h2)::hist, hand) in
-        frontier := PrioQueue.insert !frontier (cost me) me
+          let me = (nt +. time, h2, cube, ask_dist cube, t0 +. time0, (hand_pos, m, h2)::hist, hand) in
+          frontier := PrioQueue.insert !frontier (cost me) me
       )
   done;
+  print_float (Sys.time () -. start_date); print_newline ();
+  print_float (!ask_timer); print_newline ();
   Array.fold_left (fun acc -> function
   | None -> acc
   | Some (_, h_end, _, _, t0, hist, _) -> (t0, List.rev hist)::acc)
@@ -127,11 +143,10 @@ let fastest_maneuver_opt
 
 
 let fastest_maneuver
-    ?(timeout = 0.0)
     ?(heuristic = 0.1)
     (move_times: (handed_move, float) Hashtbl.t)
     (cube: cube)
     : time * maneuver =
-  match fastest_maneuvers ~timeout ~heuristic 1 move_times cube with
+  match fastest_maneuvers ~heuristic 1 move_times cube with
   | [] -> failwith "erreur erreur erreur (AlgFinderElem.fastest_maneuver)"
   | x::_ -> x
