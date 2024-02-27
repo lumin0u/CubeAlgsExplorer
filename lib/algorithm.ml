@@ -354,10 +354,9 @@ let cube_to_str ((cube_perm, _): cube): string =
 let realign (cube: cube): cube * cube_rot =
   let (c, r) = clone_cube cube in
   let rot = !r in
-  let inv_rot = inverse_perm rot in
   (* realign up face *)
   begin
-    match inv_rot.(0) with
+    match (inverse_perm !r).(0) with
     | 1 -> apply_alg_ip (c, r) [('z', 3)]
     | 2 -> apply_alg_ip (c, r) [('x', 3)]
     | 3 -> apply_alg_ip (c, r) [('x', 2)]
@@ -367,7 +366,7 @@ let realign (cube: cube): cube * cube_rot =
   end;
   (* realign right face *)
   begin
-    match inv_rot.(1) with
+    match (inverse_perm !r).(1) with
     | 2 -> apply_alg_ip (c, r) [('y', 1)]
     | 4 -> apply_alg_ip (c, r) [('y', 2)]
     | 5 -> apply_alg_ip (c, r) [('y', 3)]
