@@ -2,6 +2,18 @@ open Algorithm
 
 type hand = L | R
 
+type single_hand_pos = F | U | D | Bu | Bd | M | Af | Out
+type hand_pos = single_hand_pos * single_hand_pos
+type handed_move = hand_pos * alg * hand_pos
+type maneuver = (hand_pos * alg * hand_pos) list
+
+let cross (l1: 'a list) (l2: 'b list): ('a * 'b) list =
+  List.fold_left (fun acc x -> (List.map (fun y -> (x, y)) l2) @ acc) [] l1
+
+let cross_f (f: 'a -> 'b -> 'c) (l1: 'a list) (l2: 'b list): 'c list =
+  List.fold_left (fun acc x -> (List.map (f x) l2) @ acc) [] l1
+
+
 type profile = {
   ease_right_U2: float;
   ease_left_U2: float;
@@ -87,18 +99,6 @@ let delete_profile ?(file_name = "profiles.csv") (name: string): bool =
   let profiles, removed = remove profiles [] in
   Csv.save file_name profiles;
   removed
-
-
-type single_hand_pos = F | U | D | Bu | Bd | M | Af | Out
-type hand_pos = single_hand_pos * single_hand_pos
-type handed_move = hand_pos * alg * hand_pos
-type maneuver = (hand_pos * alg * hand_pos) list
-
-let cross (l1: 'a list) (l2: 'b list): ('a * 'b) list =
-  List.fold_left (fun acc x -> (List.map (fun y -> (x, y)) l2) @ acc) [] l1
-
-let cross_f (f: 'a -> 'b -> 'c) (l1: 'a list) (l2: 'b list): 'c list =
-  List.fold_left (fun acc x -> (List.map (f x) l2) @ acc) [] l1
 
 (* special values:
   O is Out

@@ -30,7 +30,7 @@ let fastest_maneuvers
     (alg: e_alg)
     (start_rot: cube_rot)
     (final_rot: cube_rot)
-    : (time * hand_pos * maneuver) list =
+    : (time * maneuver) list =
   let move_times =
     move_times
     |> Hashtbl.to_seq
@@ -74,14 +74,13 @@ let fastest_maneuvers
       shortests.(decr counter; !counter + 1) <- Some nearest
     else
       move_times
-      |> List.filter_map (fun (h1, m, h2, t, t0) ->
+      |> List.iter (fun (h1, m, h2, t, t0) ->
         let obv_bad =
           match hist with
           | (_, last_move, _)::_ -> is_regrip m && is_regrip last_move
           | _ -> is_regrip m
         in
-        if h1 <> hand_pos || obv_bad (*|| is_greater_than_shortest (t +. time)*) then None
-        else
+        if h1 = hand_pos && not obv_bad (*|| is_greater_than_shortest (t +. time)*) then
           let (hl1, hr1), (hl2, hr2) = h1, h2 in
           let nt = t +. (if (
             match hand with
@@ -92,16 +91,16 @@ let fastest_maneuvers
            +. (if List.for_all (fun (m, _) -> List.exists (fun (_, a, _) -> List.exists (fun (m', _) -> m=m') a) hist) m then 0.0 else heuristic)
           in
           let e_m, cr = elementalize m cube_rot in
-          Option.map (fun x -> (m, h2, nt, t0, x, cr)) (eat_opt alg e_m)
-      )
-      |> List.iter (fun (m, h2, t, t0, alg, cube_rot) ->
-        let me = (t +. time, h2, alg, cube_rot, t0 +. time0, (hand_pos, m, h2)::hist, hand) in
-        frontier := PrioQueue.insert !frontier (cost me) me
+          match eat_opt alg e_m with
+          | Some alg ->
+            let me = (nt +. time, h2, alg, cr, t0 +. time0, (hand_pos, m, h2)::hist, hand) in
+            frontier := PrioQueue.insert !frontier (cost me) me
+          | None -> ()
       )
   done;
   Array.fold_left (fun acc -> function
   | None -> acc
-  | Some (_, h_end, _, _, t0, hist, _) -> (t0, h_end, List.rev hist)::acc)
+  | Some (_, h_end, _, _, t0, hist, _) -> (t0, List.rev hist)::acc)
   [] shortests
 
 let fastest_maneuver_opt
@@ -111,7 +110,7 @@ let fastest_maneuver_opt
     (alg: e_alg)
     (start_rot: cube_rot)
     (final_rot: cube_rot)
-    : (time * hand_pos * maneuver) option =
+    : (time * maneuver) option =
   match fastest_maneuvers ~timeout ~heuristic 1 move_times alg start_rot final_rot with
   | [] -> None
   | x::_ -> Some x
@@ -121,7 +120,7 @@ let fastest_maneuver
     (move_times: (handed_move, float) Hashtbl.t)
     (alg: e_alg) (start_rot: cube_rot)
     (final_rot: cube_rot)
-    : (time * hand_pos * ((hand_pos * alg * hand_pos) list)) =
+    : time * maneuver =
   match fastest_maneuver_opt ~heuristic move_times alg start_rot final_rot with
   | None -> failwith "erreur erreur erreur (AlgEvaluatorElem.fastest_maneuver)"
   | Some x -> x
