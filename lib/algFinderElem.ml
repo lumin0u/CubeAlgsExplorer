@@ -28,6 +28,20 @@ let compare_e_move (m1: e_move) (m2: e_move): int =
   | D, U | L, R | B, F -> -1
   | _ -> 0
 
+
+let hand_pos_to_string ((h1, h2): hand_pos): string =
+  let str_hp (hp: single_hand_pos): string = 
+    match hp with
+    | Af -> "Af" | F -> "F" | U -> "U" | Bu -> "B" | Bd -> "P" | D -> "D" | Out -> "O" | M -> "M"
+  in
+  str_hp h1 ^ ":" ^ str_hp h2
+
+let maneuver_to_string maneuver =
+  List.fold_left (fun acc (h1, a, h2) ->
+    (if acc = "" then ("[" ^ hand_pos_to_string h1 ^ "] ") else acc) ^
+    (if a = [] then "[" ^ hand_pos_to_string h2 ^ "]" else alg_to_string a) ^ " "
+  ) "" maneuver
+
 (*  multiply_cubes (inverse_cube target) cube  *)
 (** will try to compute 'count' maneuvers, may return less *)
 let fastest_maneuvers
@@ -94,21 +108,22 @@ let fastest_maneuvers
   let nodes = ref 0 in
   let start_date = if timeout > 0.0 then Sys.time () else 0.0 in
   while (!frontier <> Empty && !counter >= 0) && (timeout = 0.0 || Sys.time () -. start_date < timeout) do
+    let my_cost, nearest, nfrontier = PrioQueue.extract !frontier in
+    frontier := nfrontier;
+    let (time, hand_pos, cube, dist, time0, hist, hand) = nearest in
     incr nodes;
     if !nodes mod 173 = 0 then
-      (print_int !nodes; print_string "   \r"; flush stdout);
-    let my_cost, nearest, nfrontier = PrioQueue.extract !frontier in
-    let (time, hand_pos, cube, dist, time0, hist, hand) = nearest in
-    frontier := nfrontier;
+      (print_int !nodes; print_string "   "; print_float my_cost; print_string (maneuver_to_string hist); print_string "   \r"; flush stdout);
     if is_solved_cube cube then
       shortests.(decr counter; !counter + 1) <- Some nearest
     else
       move_times
       |> List.iter (fun (h1, m, h2, t, t0) ->
+        let regrip_move = is_regrip m in
         let obv_bad =
           match hist with
-          | (_, last_move, _)::_ -> is_regrip m && is_regrip last_move
-          | _ -> is_regrip m
+          | (_, last_move, _)::_ -> regrip_move && is_regrip last_move
+          | _ -> regrip_move
         in
         if h1 = hand_pos && not obv_bad (*|| is_greater_than_shortest (t +. time)*) then
           let (hl1, hr1), (hl2, hr2) = h1, h2 in
@@ -120,7 +135,10 @@ let fastest_maneuvers
           )
            +. (if List.for_all (fun (m, _) -> List.exists (fun (_, a, _) -> List.exists (fun (m', _) -> m=m') a) hist) m then 0.0 else heuristic)
           in
-          let me = (nt +. time, h2, cube, ask_dist cube, t0 +. time0, (hand_pos, m, h2)::hist, hand) in
+          let (cube, dist) =
+            if regrip_move then cube, dist
+            else let c = apply_alg cube m in c, ask_dist c in
+          let me = (nt +. time, h2, cube, dist, t0 +. time0, (hand_pos, m, h2)::hist, hand) in
           frontier := PrioQueue.insert !frontier (cost me) me
       )
   done;
