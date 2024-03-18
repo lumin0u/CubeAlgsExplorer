@@ -5,7 +5,7 @@ type hand = L | R
 type single_hand_pos = F | U | D | Bu | Bd | M | Af | Out
 type hand_pos = single_hand_pos * single_hand_pos
 type handed_move = hand_pos * alg * hand_pos
-type maneuver = (hand_pos * alg * hand_pos) list
+type maneuver = handed_move list
 
 let cross (l1: 'a list) (l2: 'b list): ('a * 'b) list =
   List.fold_left (fun acc x -> (List.map (fun y -> (x, y)) l2) @ acc) [] l1
