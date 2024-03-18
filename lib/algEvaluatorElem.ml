@@ -80,7 +80,7 @@ let fastest_maneuvers
           | (_, last_move, _)::_ -> is_regrip m && is_regrip last_move
           | _ -> is_regrip m
         in
-        if h1 = hand_pos && not obv_bad (*|| is_greater_than_shortest (t +. time)*) then
+        if h1 = hand_pos && not obv_bad then
           let (hl1, hr1), (hl2, hr2) = h1, h2 in
           let nt = t +. (if (
             match hand with
