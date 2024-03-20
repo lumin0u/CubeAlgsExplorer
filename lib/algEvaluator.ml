@@ -16,7 +16,7 @@ let rec eat_opt (l: alg) (q: alg): alg option =
     else if n < n' then eat_opt l ((m', n'-n)::q)
     else eat_opt ((m, n-n')::l) q
 
-let fastest_chaining_opt ?(timeout = 0.0) (move_times: (handed_move, float) Hashtbl.t) (alg: alg): (time * hand_pos * maneuver) option =
+let fastest_maneuver_opt ?(timeout = 0.0) (move_times: (handed_move, float) Hashtbl.t) (alg: alg): (time * maneuver) option =
   let move_times =
     move_times
     |> Hashtbl.to_seq
@@ -98,10 +98,10 @@ let fastest_chaining_opt ?(timeout = 0.0) (move_times: (handed_move, float) Hash
   done;
   match !shortest with
   | None -> None
-  | Some (_, h_end, _, t0, hist, _) -> Some (t0, h_end, List.rev hist)
+  | Some (_, _, _, t0, hist, _) -> Some (t0, List.rev hist)
 
-let fastest_chaining ?(timeout = 0.0) (move_times: (handed_move, float) Hashtbl.t) (alg: alg): (time * hand_pos * ((hand_pos * alg * hand_pos) list)) =
-  match fastest_chaining_opt ~timeout move_times alg with
+let fastest_maneuver ?(timeout = 0.0) (move_times: (handed_move, float) Hashtbl.t) (alg: alg): (time * maneuver) =
+  match fastest_maneuver_opt ~timeout move_times alg with
   | None ->
     if timeout = 0.0 then failwith "that should not happen ... (surely move_time.csv is missing smth)"
     else failwith "ran out of time"
