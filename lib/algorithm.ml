@@ -6,12 +6,12 @@ type 'a abstr_alg = ('a * int) list
 type e_move = | F | U | D | B | R | L
 type e_alg = e_move abstr_alg
 
-type cube_rot = permutation (* de 6 elements*)
+type cube_rot = permutation (* of 6 elements*)
 let id_rot () = id_perm 6
 
-let x_rot = cycle ~n:6 [|2; 0; 5; 3|]
-let y_rot = cycle ~n:6 [|1; 2; 4; 5|]
-let z_rot = cycle ~n:6 [|0; 4; 3; 1|]
+let x_rot = cycle 6 [|2; 0; 5; 3|]
+let y_rot = cycle 6 [|1; 2; 4; 5|]
+let z_rot = cycle 6 [|0; 4; 3; 1|]
 
 (* single moves are
   | F | U | D | B | R | L
@@ -26,7 +26,7 @@ type single_move = char
 type alg = single_move abstr_alg
 let id_alg = []
 
-type cube = permutation * cube_rot ref
+type cube = permutation (* of 54 elements *)
 
 let inverse_alg (a: alg): alg =
   List.rev_map (fun (x, n) -> (x, 4-n)) a
@@ -259,10 +259,10 @@ let all_e_moves =
 (* ================================= CUBE FUNCTIONS ================================= *)
 
 let get_id_cube (): cube =
-  id_perm 54, ref (id_rot ())
+  id_perm 54
 
-let clone_cube ((c, r): cube): cube =
-  Array.copy c, ref !r
+let clone_cube (c: cube): cube =
+  Array.copy c
 
 let apply_alg_ip (cube: cube) (alg: alg): unit =
   let apply_perm (perm: int array) (cube: int array): unit =
@@ -301,10 +301,7 @@ let apply_alg_ip (cube: cube) (alg: alg): unit =
       | (s, n)::alg -> let rec do_ n = if n <> 0 then (s_of_c cube s; do_ (n-1)) in do_ n; f alg
     in f alg
   in
-  let cube, s_rot = cube in
-  apply_alg cube alg;
-  let _, f_rot = elementalize alg !s_rot in
-  s_rot := f_rot
+  apply_alg cube alg
 
 let apply_alg (cube: cube) (alg: alg): cube =
   let cube = clone_cube cube in
@@ -316,10 +313,78 @@ let cube_from_alg (alg: alg): cube =
   apply_alg_ip cube alg;
   cube
 
+let inverse_cube (cube: cube): cube =
+  inverse_perm cube
+
+let multiply_cubes (cube1: cube) (cube2: cube): cube =
+  cube1 $ cube2
+
 (* e_alg cube functions *)
 
+let xd_cube = cube_from_alg [('x', 1)] (* this cube has been x'd *)
+and yd_cube = cube_from_alg [('y', 1)]
+and zd_cube = cube_from_alg [('z', 1)]
+
+let rotate_cube (cube: cube) (rot: cube_rot): cube =
+  multiply_cubes cube (
+    match rot.(0), rot.(1) with
+    | 0, 1 -> get_id_cube ()
+    | 0, 2 -> yd_cube
+    | 0, 4 -> yd_cube $* 2
+    | 0, 5 -> yd_cube $* 3
+    | 1, 0 -> zd_cube $ yd_cube $* 2
+    | 1, 2 -> zd_cube $ yd_cube
+    | 1, 3 -> zd_cube
+    | 1, 5 -> zd_cube $ yd_cube $* 3
+    | 2, 0 -> zd_cube $* 3 $ xd_cube
+    | 2, 1 -> xd_cube
+    | 2, 3 -> zd_cube $ xd_cube
+    | 2, 4 -> zd_cube $* 2 $ xd_cube
+    | 3, 1 -> xd_cube $* 2
+    | 3, 2 -> yd_cube $ xd_cube $* 2
+    | 3, 4 -> zd_cube $* 2
+    | 3, 5 -> yd_cube $* 3 $ xd_cube $* 2
+    | 4, 0 -> zd_cube $* 3
+    | 4, 2 -> yd_cube $ xd_cube
+    | 4, 3 -> zd_cube $ xd_cube $* 2
+    | 4, 5 -> yd_cube $* 3 $ xd_cube $* 3
+    | 5, 0 -> zd_cube $* 3 $ xd_cube $* 3
+    | 5, 1 -> xd_cube $* 3
+    | 5, 3 -> zd_cube $ xd_cube $* 3
+    | 5, 4 -> zd_cube $* 2 $ xd_cube $* 3
+    | _ -> invalid_arg "rotate_cube: rot is not a cube_rot"
+  )
+
+let get_cube_rot (cube: cube): cube_rot =
+  match cube.(4), cube.(25) with
+  | 4, 25 -> id_rot ()
+  | 4, 22 -> y_rot
+  | 4, 31 -> y_rot $* 2
+  | 4, 28 -> y_rot $* 3
+  | 25, 4 -> z_rot $ y_rot $* 2
+  | 25, 22 -> z_rot $ y_rot
+  | 25, 49 -> z_rot
+  | 25, 28 -> z_rot $ y_rot $* 3
+  | 22, 4 -> z_rot $* 3 $ x_rot
+  | 22, 25 -> x_rot
+  | 22, 49 -> z_rot $ x_rot
+  | 22, 31 -> z_rot $* 2 $ x_rot
+  | 49, 25 -> x_rot $* 2
+  | 49, 22 -> y_rot $ x_rot $* 2
+  | 49, 31 -> z_rot $* 2
+  | 49, 28 -> y_rot $* 3 $ x_rot $* 2
+  | 31, 4 -> z_rot $* 3
+  | 31, 22 -> y_rot $ x_rot
+  | 31, 49 -> z_rot $ x_rot $* 2
+  | 31, 28 -> y_rot $* 3 $ x_rot $* 3
+  | 28, 4 -> z_rot $* 3 $ x_rot $* 3
+  | 28, 25 -> x_rot $* 3
+  | 28, 49 -> z_rot $ x_rot $* 3
+  | 28, 31 -> z_rot $* 2 $ x_rot $* 3
+  | _ -> invalid_arg "get_cube_rot: cube is not a cube"
+
 let apply_e_alg_ip (cube: cube) (alg: e_alg): unit =
-  let inv_rot = (let _, r = cube in inverse_perm !r) in
+  let inv_rot = get_cube_rot cube |> inverse_perm in
   apply_alg_ip cube (List.map (fun (m, n) -> char_of_e_move (rotate_e_move m inv_rot), n) alg)
 
 let apply_e_alg (cube: cube) (alg: e_alg): cube =
@@ -332,7 +397,7 @@ let cube_from_e_alg (alg: e_alg): cube =
   apply_e_alg_ip cube alg;
   cube
 
-let cube_to_str ((cube_perm, _): cube): string =
+let cube_to_str (cube_perm: cube): string =
   let color (stick: int): char =
     let l = (stick / 3) in
     if l < 3 then 'U'
@@ -352,36 +417,36 @@ let cube_to_str ((cube_perm, _): cube): string =
   ]
 
 let realign (cube: cube): cube * cube_rot =
-  let (c, r) = clone_cube cube in
-  let rot = !r in
-  (* realign up face *)
-  begin
-    match (inverse_perm !r).(0) with
-    | 1 -> apply_alg_ip (c, r) [('z', 3)]
-    | 2 -> apply_alg_ip (c, r) [('x', 3)]
-    | 3 -> apply_alg_ip (c, r) [('x', 2)]
-    | 4 -> apply_alg_ip (c, r) [('z', 1)]
-    | 5 -> apply_alg_ip (c, r) [('x', 1)]
-    | _ -> ()
-  end;
-  (* realign right face *)
-  begin
-    match (inverse_perm !r).(1) with
-    | 2 -> apply_alg_ip (c, r) [('y', 1)]
-    | 4 -> apply_alg_ip (c, r) [('y', 2)]
-    | 5 -> apply_alg_ip (c, r) [('y', 3)]
-    | _ -> ()
-  end;
-  (c, r), rot
+  let rot = get_cube_rot cube in
+  rotate_cube cube (inverse_perm rot), rot
 
-let inverse_cube (cube: cube): cube =
-  let (c, r) = clone_cube cube in
-  inverse_perm c, ref (inverse_perm !r)
+let is_solved_cube (c: cube): bool =
+  let rec aux i =
+    if i = Array.length c then true
+    else c.(i) = i && aux (i+1)
+  in
+  aux 0
 
-let multiply_cubes (cube1: cube) (cube2: cube): cube =
-  let (c1, r1) = clone_cube cube1 in
-  let (c2, r2) = clone_cube cube2 in
-  c1 $ c2, ref (!r1 $ !r2)
+module CubeSet = Set.Make(struct type t = cube let compare = compare end)
 
-let is_solved_cube ((c, r): cube): bool =
-  Array.fold_left (fun (acc, i) i' -> (acc && i=i', i+1)) (true, 0) c |> fst
+let get_min_subgroup (generator: CubeSet.t): CubeSet.t =
+  let rec aux (frontier: CubeSet.t) (explored: CubeSet.t) (card: int): CubeSet.t =
+    let next = CubeSet.fold (fun c acc ->
+        CubeSet.fold (fun c' acc ->
+          CubeSet.add (multiply_cubes c c') acc
+        ) acc generator
+      ) frontier explored
+    in
+    let ncard = CubeSet.cardinal next in
+    if ncard = card then explored
+    else aux (CubeSet.diff next explored) next ncard
+  in
+  aux (CubeSet.singleton (get_id_cube ())) (CubeSet.singleton (get_id_cube ())) 1
+
+let pll_subgroup =
+  let f (s: string): cube =
+    parse_alg s |> cube_from_alg
+  in
+  get_min_subgroup CubeSet.(singleton (f "U") |> add (f "R2B2RFR'B2RF'R") |> add (f "R2URUR'U'R'U'R'UR'"))
+
+let () = print_int (CubeSet.cardinal pll_subgroup); print_newline ()

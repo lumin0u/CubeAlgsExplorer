@@ -4,11 +4,10 @@ let eval_perm (p: permutation): int -> int = fun i -> if i < Array.length p then
 
 let id_perm n = Array.init n (fun i -> i)
 
-let compose_perm (f: permutation) (g: permutation): permutation = 
-  let size = max (Array.length f) (Array.length g)
-  and f = eval_perm f
-  and g = eval_perm g in
-  Array.init size (fun n -> f (g n))
+(** [f] and [g] must be of same size *)
+let compose_perm (f: permutation) (g: permutation): permutation =
+  let size = Array.length f in
+  Array.init size (fun n -> f.(g.(n)))
 
 let ( $ ) = compose_perm
 
@@ -20,17 +19,11 @@ let inverse_perm (f: permutation): permutation =
 let apply_perm (p: permutation) (a: 'a array): 'a array = 
   let p = eval_perm p in Array.init (Array.length a) (fun i -> a.(p i))
 
-let cycle ?(n: int option) (c: int array): permutation =
+let cycle (n: int) (c: int array): permutation =
   let cn = Array.length c in
   if cn = 0 then id_perm 0
   else
-    let maxi = Array.fold_left (fun acc x -> max acc x) 0 c in
-    let n =
-      match n with
-      | None -> maxi
-      | Some n -> max maxi (n-1)
-    in
-    Array.init (n + 1) (fun i ->
+    Array.init n (fun i ->
       match Array.find_index ((=) i) c with
       | None -> i
       | Some i -> c.((i + 1) mod cn)

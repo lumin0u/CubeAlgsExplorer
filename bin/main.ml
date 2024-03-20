@@ -2,6 +2,7 @@ open Rubiks_cube
 open CuberProfile
 open AlgFinderElem
 open Algorithm
+open Permutation
 
 open GMain
 open GdkKeysyms
@@ -18,12 +19,18 @@ let hand_pos_to_string ((h1, h2): hand_pos): string =
 let maneuver_to_string maneuver =
   List.fold_left (fun acc (h1, a, h2) ->
     (if acc = "" then ("[" ^ hand_pos_to_string h1 ^ "] ") else acc) ^
-    (if a = [] then "[" ^ hand_pos_to_string h2 ^ "]" else alg_to_string a) ^ " "
+    (
+      match a with 
+      | [] -> "[" ^ hand_pos_to_string h2 ^ "]"
+      | [_] -> alg_to_string a
+      | _ -> "(" ^ alg_to_string a ^ ")"
+    ) ^ " "
   ) "" maneuver
+
 
 let app_main () =
   let _ = GMain.init () in
-  let window = GWindow.window ~width:1240 ~height:620
+  let window = GWindow.window ~width:1040 ~height:620
                           ~title:"Configuration du profil" () in
   window#connect#destroy ~callback:Main.quit |> ignore;
 
@@ -184,10 +191,22 @@ let app_main () =
     let prof = get_current_profile () in
     let move_times = load_move_times prof in
     Thread.create (fun () ->
+      let l = AlgEvaluatorElem.fastest_maneuvers ~heuristic:0.2 1 move_times (parse_e_alg str) (id_rot ()) (id_rot ()) in
+      List.fold_left (fun acc (t, maneuver) ->
+        let alg_str = maneuver_to_string maneuver in
+        acc ^ alg_str ^ string_of_float t ^ "\n"
+      ) "" l
+      |> result1_text#buffer#set_text
+    ) () |> ignore;
+
+    Thread.create (fun () -> (* RUR'U'R'FR2U'R'U'RUR'F'  ~quotient_group:pll_subgroup  *)
       let cube = cube_from_alg (parse_alg str) in
-      let t, maneuver = fastest_maneuver ~heuristic:0.15 move_times (inverse_cube cube) in
-      let alg_str = maneuver_to_string maneuver in
-      result1_text#buffer#set_text (alg_str ^ string_of_float t)
+      let l = fastest_maneuvers ~heuristic:0.1 ~quotient_group:pll_subgroup 5 move_times (inverse_cube cube) in
+      List.fold_left (fun acc (t, maneuver) ->
+        let alg_str = maneuver_to_string maneuver in
+        acc ^ alg_str ^ string_of_float t ^ "\n"
+      ) "" l
+      |> result2_text#buffer#set_text
     ) () |> ignore;
   ) |> ignore;
 
