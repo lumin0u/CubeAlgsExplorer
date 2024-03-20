@@ -1,5 +1,6 @@
 open Algorithm
 open CuberProfile
+open Cube
 
 
 (* time is float, locally *)
@@ -171,7 +172,7 @@ let fastest_maneuvers
             else let c = multiply_cubes cube tocube in c, ask_dist c in
           
           (* this is kind of cheating but it works *)
-          let nt = if PermutationSet.mem (Hashtbl.hash cube') !explored_cubes then nt +. 0.05 else nt in
+          let nt = if PermutationSet.mem (Hashtbl.hash cube') !explored_cubes then nt +. 0.08 else nt in
 
           let state = to_state h2 cube' hand in
           if not (StateSet.mem state !states_tbl) then

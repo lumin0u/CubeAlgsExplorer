@@ -3,6 +3,7 @@ open CuberProfile
 open AlgFinderElem
 open Algorithm
 open Permutation
+open Cube
 
 open GMain
 open GdkKeysyms
@@ -201,7 +202,7 @@ let app_main () =
 
     Thread.create (fun () -> (* RUR'U'R'FR2U'R'U'RUR'F'  ~quotient_group:pll_subgroup  *)
       let cube = cube_from_alg (parse_alg str) in
-      let l = fastest_maneuvers ~heuristic:0.1 ~quotient_group:pll_subgroup 5 move_times (inverse_cube cube) in
+      let l = fastest_maneuvers ~heuristic:0.1 ~quotient_group:pll_subgroup 3 move_times (inverse_cube cube) in
       List.fold_left (fun acc (t, maneuver) ->
         let alg_str = maneuver_to_string maneuver in
         acc ^ alg_str ^ string_of_float t ^ "\n"
