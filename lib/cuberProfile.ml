@@ -202,7 +202,8 @@ let load_move_times ?(file_name = "move_time.csv") (prof: profile): (handed_move
             parse_alg alg
         in
         parse_hand_positions from_pos to_pos
-        |> List.iter (fun (from_, to_) -> Hashtbl.replace tbl (from_, alg, to_) time)
+        |> List.iter (fun (from_, to_) -> 
+          if alg <> [] || from_ <> to_ then Hashtbl.replace tbl (from_, alg, to_) time)
       | _ -> ()
     ) (List.tl csv); (* ignore the first line of the csv *)
   tbl
