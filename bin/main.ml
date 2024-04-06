@@ -92,7 +92,7 @@ let app_main () =
   let delete_profile_button = GButton.button ~label:"Supprimer" ~packing:(line#pack ~padding:5) () in
   let reset_profile_button = GButton.button ~label:"Réinitialiser" ~packing:(line#pack ~padding:5) () in
   let alg_text_zone = GText.view ~accepts_tab:false ~editable:true ~border_width:2 ~packing:(line#pack ~expand:true ~padding:5) () in
-  let wait_icon = GMisc.image ~packing:(line#pack ~padding:5) () in
+  (* let wait_icon = GMisc.image ~packing:(line#pack ~padding:5) () in *)
   let test_button = GButton.button ~label:"Test" ~packing:(line#pack ~padding:5) () in
   (*let stop_button = GButton.button ~label:"Stop" ~packing:(line#pack ~padding:5) () in
   let stopask_button = GButton.button ~label:"Stop ask" ~packing:(line#pack ~padding:5) () in*)
@@ -192,7 +192,7 @@ let app_main () =
     let prof = get_current_profile () in
     let move_times = load_move_times prof in
     Thread.create (fun () ->
-      let l = AlgEvaluatorElem.fastest_maneuvers ~heuristic:0.2 1 move_times (parse_e_alg str) (id_rot ()) (id_rot ()) in
+      let l = AlgEvaluatorElem.fastest_maneuvers ~timeout:2.0 ~heuristic:0.2 1 move_times (parse_e_alg str) (id_rot ()) (id_rot ()) in
       List.fold_left (fun acc (t, maneuver) ->
         let alg_str = maneuver_to_string maneuver in
         acc ^ alg_str ^ string_of_float t ^ "\n"
@@ -202,7 +202,7 @@ let app_main () =
 
     Thread.create (fun () -> (* RUR'U'R'FR2U'R'U'RUR'F'  ~quotient_group:pll_subgroup  *)
       let cube = cube_from_alg (parse_alg str) in
-      let l = fastest_maneuvers ~heuristic:0.1 ~quotient_group:pll_subgroup 3 move_times (inverse_cube cube) in
+      let l = fastest_maneuvers ~heuristic:0.1 5 move_times (inverse_cube cube) in
       List.fold_left (fun acc (t, maneuver) ->
         let alg_str = maneuver_to_string maneuver in
         acc ^ alg_str ^ string_of_float t ^ "\n"

@@ -18,11 +18,8 @@ let rec eat_opt (l: e_alg) (q: e_alg): e_alg option =
     else if n < n' then eat_opt l ((m', n'-n)::q)
     else eat_opt ((m, n-n')::l) q
 
-let is_regrip (alg: alg): bool =
-  match alg with
-  | [] -> true
-  | _ -> false
-
+let pp_array array =
+  Array.fold_left (fun acc x -> acc ^ string_of_int x ^ "; ") "[|" array ^ "|]"
 
 let hand_pos_to_string ((h1, h2): hand_pos): string =
   let str_hp (hp: single_hand_pos): string = 
@@ -42,9 +39,13 @@ let maneuver_to_string maneuver =
     ) ^ " "
   ) "" maneuver
 
+let alg_of_maneuver (m: maneuver): alg =
+  List.fold_left (fun acc (_, a, _) -> compose_alg acc a) id_alg m
+
 (* module StateSet = Set.Make(struct type t = hand_pos * cube let compare = compare end) *)
 module StateSet = Set.Make(struct type t = int * int let compare = compare end)
 module PermutationSet = Set.Make(struct type t = int let compare = compare end)
+
 
 (*  multiply_cubes (inverse_cube target) cube  *)
 (** Will try to compute [count] maneuvers, may return less if [timeout] is set to a positive value. *)
@@ -79,7 +80,7 @@ let fastest_maneuvers
   |> List.iter (fun (hand, hand_pos) ->
     Hashtbl.add move_times_dict (hand, hand_pos)
     (move_times
-    |> List.filter_map (fun (h1, m, h2, t, t0) ->
+    |> List.filter_map (fun (h1, m, h2, t, _) ->
       if h1 <> hand_pos then None
       else
         let (hl1, hr1), (hl2, hr2) = h1, h2 in
@@ -90,7 +91,7 @@ let fastest_maneuvers
           ) then 0.2 else 0.0
         )
         in
-        Some (m, cube_from_alg m, h2, nt +. (if is_regrip m then 0.05 else 0.0), t0)
+        Some (m, cube_from_alg m, h2, nt +. (if m = [] then 0.0 else 0.0))
     ))
   );
 
@@ -105,7 +106,7 @@ let fastest_maneuvers
 
   (* ask the python server for an heuristic of the distance to the solved cube *)
   let ask_dist (cube: cube): int =
-    let realigned = realign cube |> fst in
+    let realigned, _ = realign cube in
     match Hashtbl.find_opt positions_dist realigned with
     | Some d -> d
     | None ->
@@ -117,70 +118,113 @@ let fastest_maneuvers
   in
 
   (* on peut en faire des choses avec un cube en 5 secondes *)
-  let cost (t, _, cube, dist, _, _, _, _) =
-    t +. heuristic *. float_of_int dist
+  let cost (t, _, _, dist, _, _, n) =
+    t +. heuristic *. (float_of_int dist -. float_of_int n *. 0.3)
   in
 
   let to_state hand_pos cube hand =
     (Hashtbl.hash (hand_pos, hand, cube), Hashtbl.hash cube)
   in
 
-  let states_tbl = ref StateSet.empty
-  and explored_cubes = ref PermutationSet.empty
+  let states_tbl = Hashtbl.create 100
+  (* and explored_cubes = ref PermutationSet.empty *)
   in
-  let dist = ask_dist cube in
-  let frontier =
-    let start =(*R'FRUR'F'RFU'F'*)
-      cross [F] [F; U; D; Bu; Bd; M] @ cross [F; U; D; Bu; Bd; M] [F]
-      |> cross (CubeSet.to_list quotient_group)
-      |> cross [R; L]
-      |> List.map (fun (h, (c, hp)) -> (0.0, hp, multiply_cubes c cube, dist, 0.0, [], h, []))
+  let frontier = Heap.create () in
+  let start =(*R'FRUR'F'RFU'F'*)
+    cross [F] [F; U; D; Bu; Bd; M] @ cross [F; U; D; Bu; Bd; M] [F]
+    |> cross (CubeSet.to_list quotient_group)
+    |> cross [R; L]
+    |> List.map (fun (h, (c, hp)) ->
+      let cube = multiply_cubes c cube in
+      let dist = ask_dist cube in
+      (0.0, hp, create_collapsed cube, dist, h, [], 0))
+  in
+  List.iter (fun (_, hp, cube, _, hand, _, _) -> Hashtbl.add states_tbl (to_state hp cube hand) None) start;
+  List.iter (fun x -> Heap.add (cost x) x frontier) start;
+
+  let find_hist state hp_end =
+    let rec aux state acc =
+      match Hashtbl.find states_tbl state with
+      | Some((hp, m), super) -> aux super ((hp, m)::acc)
+      | None -> acc
     in
-    List.iter (fun (_, hp, cube, _, _, _, hand, _) -> states_tbl := StateSet.add (to_state hp cube hand) !states_tbl) start;
-    ref (List.fold_left (fun acc x -> PrioQueue.insert acc (cost x) x) PrioQueue.empty start)
+    let rec aux1 man acc =
+      match man with
+      | (h1, m1)::(h2, m2)::man -> aux1 ((h2, m2)::man) ((h1, m1, h2)::acc)
+      | [(h, m)] -> (h, m, hp_end)::acc
+      | [] -> []
+    in
+    aux1 (aux state []) []
   in
 
+  let common_cube = Array.make 54 0 in
   (* ### EXPLORATION ### *)
-  let explore move_times_dict frontier explored_cubes =
-    let _, (time, hand_pos, cube, dist, time0, hist, hand, used_m), nfrontier = PrioQueue.extract !frontier in
-    frontier := nfrontier;
+  let explore () =
+    let _, (time, hand_pos, ccube, dist, hand, used_m, n) = Heap.take_min frontier in
+    let super_state_hash = to_state hand_pos ccube hand in
+    let cube = common_cube in
+    expand_cube ccube cube;
     (* print_endline (string_of_int dist ^ " " ^ maneuver_to_string (List.rev hist) ^ " " ^ string_of_float time); *)
     if is_solved_cube cube then begin
-      (* solution found *)
-      print_newline ();
-      print_endline ("from forward : " ^ maneuver_to_string (List.rev hist));
-      incr counter;
-      shortests := (time0, hist)::!shortests
+      let hist = find_hist super_state_hash hand_pos in
+      let me_to_alg = alg_of_maneuver hist in
+      if List.for_all (fun (_, _, a) -> me_to_alg <> a) !shortests then begin
+        (* we do not want maneuvers that are too similar *)
+        (* solution found *)
+        print_newline ();
+        print_endline ("from forward : " ^ maneuver_to_string (List.rev hist));
+        incr counter;
+        shortests := (time, hist, me_to_alg)::!shortests
+      end
     end
     else begin
       (* explore neighbours *)
-      explored_cubes := PermutationSet.add (Hashtbl.hash cube) !explored_cubes;
+      let super_state = Hashtbl.find states_tbl super_state_hash in
       Hashtbl.find move_times_dict (hand, hand_pos)
-      |> List.iter (fun (m, tocube, h2, t, t0) ->
+      (* compute time now ... *)
+      |> List.filter_map (fun (m, tocube, h2, t) ->
         (* tocube is the result of apply_alg id_cube m *)
         let obv_bad =
-          match hist with
-          | (_, last_move, _)::_ -> is_regrip m && is_regrip last_move
-          | _ -> is_regrip m
-        in
-        if not obv_bad then
-          let new_moves = List.filter_map (fun (m, _) -> if List.mem m used_m then None else Some m) m in
-          let nt = t +. if new_moves = [] then 0.0 else 0.5 *. heuristic
-          in
-          let (cube', dist') =
-            if m = [] then cube, dist
-            else let c = multiply_cubes cube tocube in c, ask_dist c in
-          
-          (* this is kind of cheating but it works *)
-          let nt = if PermutationSet.mem (Hashtbl.hash cube') !explored_cubes then nt +. 0.08 else nt in
-
-          let state = to_state h2 cube' hand in
-          if not (StateSet.mem state !states_tbl) then
+          match super_state with
+          | Some((_, []), _) | None -> m = []
+          | Some((_, [(m', _)]), _) ->
             begin
-              states_tbl := StateSet.add state !states_tbl;
-              let me = (nt +. time, h2, cube', dist', t0 +. time0, (hand_pos, m, h2)::hist, hand, new_moves @ used_m) in
-              frontier := PrioQueue.insert !frontier (cost me) me
+              match m with
+              | [(m, _)] -> m = m'
+              | _ -> false
             end
+          | _ -> false
+        in
+        if obv_bad then
+          None
+        else
+          let new_moves = List.filter_map (fun (m, _) -> if List.mem m used_m then None else Some m) m in
+          let t = t +. if new_moves = [] then 0.0 else 0.5 *. heuristic in
+          Some (m, tocube, h2, t, new_moves)
+      )
+      (* ... so that it can be sorted and pushed in the queue in the right order *)
+      |> List.sort (fun (_, _, _, t1, _) (_, _, _, t2, _) -> Float.compare t1 t2)
+      |> List.iter (fun (m, tocube, h2, t, new_moves) ->
+        (* tocube is the result of apply_alg id_cube m *)
+        let cube_changed = m <> [] in
+        let cube' =
+          if cube_changed then multiply_cubes cube tocube
+          else cube
+        in
+
+        let collapsed = create_collapsed cube' in
+        let state = to_state h2 collapsed hand in
+        if not (Hashtbl.mem states_tbl state) then
+          begin
+            let dist' = if cube_changed then ask_dist cube' else dist in
+            (* this is kind of cheating but it works *)
+            (* if PermutationSet.mem (Hashtbl.hash cube') !explored_cubes then 0.05 else *)
+            let cost_add = 0.0 in
+
+            Hashtbl.add states_tbl state (Some((hand_pos, m), super_state_hash));
+            let me = (t +. time, h2, collapsed, dist', hand, new_moves @ used_m, n + List.length m) in
+            Heap.add (cost me +. cost_add) me frontier
+          end
       )
     end
   in
@@ -191,13 +235,15 @@ let fastest_maneuvers
   (* ### 'MAIN LOOP' ### *)
   while !counter < count && (timeout = 0.0 || Sys.time () -. start_date < timeout) do
     incr nodes;
-    if !nodes mod 17 = 0 then
-      (print_int !nodes; print_string "  \r"; flush stdout);
-    explore move_times_dict frontier explored_cubes
+    (if !nodes mod 31 = 0 then
+      (print_int !nodes; print_string "    "; print_int (Hashtbl.length states_tbl); print_string "    "; print_int (Heap.length frontier); print_string "  \r"; flush stdout));
+    (* if Heap.length frontier > 1000000 then
+      (print_endline "\nCUT"; Heap.cut_half frontier); *)
+    explore ()
   done;
   print_newline ();
   print_float (Sys.time () -. start_date); print_newline ();
-  List.rev_map (fun (t0, hist) -> (t0, List.rev hist)) !shortests
+  List.rev_map (fun (t0, hist, _) -> (t0, List.rev hist)) !shortests
 
 let fastest_maneuver_opt
     ?(timeout = 0.0)

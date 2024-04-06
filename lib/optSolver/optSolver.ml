@@ -24,6 +24,7 @@ open SMoves
 open SPruning
 open SSymmetries
 open CuberProfile
+open Cube
 
 type maneuver = CuberProfile.maneuver
 

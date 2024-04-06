@@ -64,70 +64,49 @@ let inverse_cube (cube: cube): cube =
 let multiply_cubes (cube1: cube) (cube2: cube): cube =
   cube1 $ cube2
 
-(* e_alg cube functions *)
+(* ROTATION OF THE CUBE *)
 
-let xd_cube = cube_from_alg [('x', 1)] (* this cube has been x'd *)
-and yd_cube = cube_from_alg [('y', 1)]
-and zd_cube = cube_from_alg [('z', 1)]
+(** the map of all the rotations and their associated cube *)
+let rotations_tbl, rotations_lst =
+  let assoc = 
+    ["" ; "z"  ; "z2"  ; "z'"  ; (* front face *)
+    "x" ; "xz" ; "xz2" ; "xz'" ; (* up face *)
+    "x2"; "x2z"; "x2z2"; "x2z'"; (* back face *)
+    "x'"; "x'z"; "x'z2"; "x'z'"; (* down face *)
+    "y" ; "yz" ; "yz2" ; "yz'" ; (* left face *)
+    "y'"; "y'z"; "y'z2"; "y'z'"] (* right face *)
+    |> List.map parse_alg
+    |> List.map (fun alg -> (elementalize alg (id_rot ()) |> snd, (cube_from_alg alg, cube_from_alg alg |> inverse_cube)))
+  in
+  Hashtbl.of_seq (List.to_seq assoc), assoc
 
 let rotate_cube (cube: cube) (rot: cube_rot): cube =
-  multiply_cubes cube (
-    match rot.(0), rot.(1) with
-    | 0, 1 -> get_id_cube ()
-    | 0, 2 -> yd_cube
-    | 0, 4 -> yd_cube $* 2
-    | 0, 5 -> yd_cube $* 3
-    | 1, 0 -> zd_cube $ yd_cube $* 2
-    | 1, 2 -> zd_cube $ yd_cube
-    | 1, 3 -> zd_cube
-    | 1, 5 -> zd_cube $ yd_cube $* 3
-    | 2, 0 -> zd_cube $* 3 $ xd_cube
-    | 2, 1 -> xd_cube
-    | 2, 3 -> zd_cube $ xd_cube
-    | 2, 4 -> zd_cube $* 2 $ xd_cube
-    | 3, 1 -> xd_cube $* 2
-    | 3, 2 -> yd_cube $ xd_cube $* 2
-    | 3, 4 -> zd_cube $* 2
-    | 3, 5 -> yd_cube $* 3 $ xd_cube $* 2
-    | 4, 0 -> zd_cube $* 3
-    | 4, 2 -> yd_cube $ xd_cube
-    | 4, 3 -> zd_cube $ xd_cube $* 2
-    | 4, 5 -> yd_cube $* 3 $ xd_cube $* 3
-    | 5, 0 -> zd_cube $* 3 $ xd_cube $* 3
-    | 5, 1 -> xd_cube $* 3
-    | 5, 3 -> zd_cube $ xd_cube $* 3
-    | 5, 4 -> zd_cube $* 2 $ xd_cube $* 3
-    | _ -> invalid_arg "rotate_cube: rot is not a cube_rot"
-  )
+  multiply_cubes (
+    Hashtbl.find rotations_tbl rot |> fst
+  ) cube
 
 let get_cube_rot (cube: cube): cube_rot =
-  match cube.(4), cube.(25) with
-  | 4, 25 -> id_rot ()
-  | 4, 22 -> y_rot
-  | 4, 31 -> y_rot $* 2
-  | 4, 28 -> y_rot $* 3
-  | 25, 4 -> z_rot $ y_rot $* 2
-  | 25, 22 -> z_rot $ y_rot
-  | 25, 49 -> z_rot
-  | 25, 28 -> z_rot $ y_rot $* 3
-  | 22, 4 -> z_rot $* 3 $ x_rot
-  | 22, 25 -> x_rot
-  | 22, 49 -> z_rot $ x_rot
-  | 22, 31 -> z_rot $* 2 $ x_rot
-  | 49, 25 -> x_rot $* 2
-  | 49, 22 -> y_rot $ x_rot $* 2
-  | 49, 31 -> z_rot $* 2
-  | 49, 28 -> y_rot $* 3 $ x_rot $* 2
-  | 31, 4 -> z_rot $* 3
-  | 31, 22 -> y_rot $ x_rot
-  | 31, 49 -> z_rot $ x_rot $* 2
-  | 31, 28 -> y_rot $* 3 $ x_rot $* 3
-  | 28, 4 -> z_rot $* 3 $ x_rot $* 3
-  | 28, 25 -> x_rot $* 3
-  | 28, 49 -> z_rot $ x_rot $* 3
-  | 28, 31 -> z_rot $* 2 $ x_rot $* 3
-  | _ -> invalid_arg "get_cube_rot: cube is not a cube"
+  let rec aux (s: (cube_rot * (cube * cube)) list) =
+    match s with
+    | (rot, (c, _))::s ->
+      if c.(4) = cube.(4) && c.(22) = cube.(22) then rot
+      else aux s
+    | _ -> failwith "not a cube"
+  in
+  aux rotations_lst
 
+let realign (cube: cube): cube * cube_rot =
+  let rec aux (s: (cube_rot * (cube * cube)) list) =
+    match s with
+    | (rot, (c, ic))::s ->
+      if c.(4) = cube.(4) && c.(22) = cube.(22) then ic $ cube, rot
+      else aux s
+    | _ -> failwith "not a cube"
+  in
+  aux rotations_lst
+
+  (* e_alg functions *)
+  
 let apply_e_alg_ip (cube: cube) (alg: e_alg): unit =
   let inv_rot = get_cube_rot cube |> inverse_perm in
   apply_alg_ip cube (List.map (fun (m, n) -> char_of_e_move (rotate_e_move m inv_rot), n) alg)
@@ -141,8 +120,10 @@ let cube_from_e_alg (alg: e_alg): cube =
   let cube = get_id_cube () in
   apply_e_alg_ip cube alg;
   cube
+  
+  (* UTIL FUNCTIONS *)
 
-let cube_to_str (cube_perm: cube): string =
+let cube_to_str (cube: cube): string =
   let color (stick: int): char =
     let l = (stick / 3) in
     if l < 3 then 'U'
@@ -152,18 +133,16 @@ let cube_to_str (cube_perm: cube): string =
     else if  l = 5 || l = 9 || l = 13 then 'B'
     else 'L'
   in
-  List.fold_left (fun acc i -> acc ^ String.make 1 (color cube_perm.(i))) ""
-  [0; 1; 2; 3; 4; 5; 6; 7; 8; (* UP *)
-  12; 13; 14; 24; 25; 26; 36; 37; 38; (* RIGHT *)
-  9; 10; 11; 21; 22; 23; 33; 34; 35; (* FRONT *)
-  45; 46; 47; 48; 49; 50; 51; 52; 53; (* DOWN *)
-  18; 19; 20; 30; 31; 32; 42; 43; 44; (* LEFT *)
-  15; 16; 17; 27; 28; 29; 39; 40; 41 (* BACK *)
-  ]
-
-let realign (cube: cube): cube * cube_rot =
-  let rot = get_cube_rot cube in
-  rotate_cube cube (inverse_perm rot), rot
+  let cube_perm =
+    cube $ [|0; 1; 2; 3; 4; 5; 6; 7; 8; (* UP *)
+    12; 13; 14; 24; 25; 26; 36; 37; 38; (* RIGHT *)
+    9; 10; 11; 21; 22; 23; 33; 34; 35; (* FRONT *)
+    45; 46; 47; 48; 49; 50; 51; 52; 53; (* DOWN *)
+    18; 19; 20; 30; 31; 32; 42; 43; 44; (* LEFT *)
+    15; 16; 17; 27; 28; 29; 39; 40; 41 (* BACK *)
+    |]
+  in
+  String.init 54 (fun i -> color cube_perm.(i))
 
 let is_solved_cube (c: cube): bool =
   let rec aux i =
@@ -175,23 +154,81 @@ let is_solved_cube (c: cube): bool =
 module CubeSet = Set.Make(struct type t = cube let compare = compare end)
 
 let get_min_subgroup (generator: CubeSet.t): CubeSet.t =
-  let rec aux (frontier: CubeSet.t) (explored: CubeSet.t) (card: int): CubeSet.t =
-    let next = CubeSet.fold (fun c acc ->
-        CubeSet.fold (fun c' acc ->
-          CubeSet.add (multiply_cubes c c') acc
-        ) acc generator
-      ) frontier explored
+  let rec aux (frontier: CubeSet.t) (explored: CubeSet.t): CubeSet.t =
+    let next, explored = CubeSet.fold (fun c acc ->
+        CubeSet.fold (fun c' (next, explored) ->
+          let nc = multiply_cubes c c' in
+          if CubeSet.mem nc explored then next, explored
+          else CubeSet.add nc next, CubeSet.add nc explored
+        ) generator acc
+      ) frontier (CubeSet.empty, explored)
     in
-    let ncard = CubeSet.cardinal next in
-    if ncard = card then explored
-    else aux (CubeSet.diff next explored) next ncard
+    if CubeSet.is_empty next then explored
+    else aux next explored
   in
-  aux (CubeSet.singleton (get_id_cube ())) (CubeSet.singleton (get_id_cube ())) 1
+  aux (CubeSet.singleton (get_id_cube ())) (CubeSet.singleton (get_id_cube ()))
 
+(* sous groupe des PLL: groupe des permutations des coins et arêtes de la face supérieure *)
 let pll_subgroup =
   let f (s: string): cube =
     parse_alg s |> cube_from_alg
   in
   get_min_subgroup CubeSet.(singleton (f "U") |> add (f "R2B2RFR'B2RF'R") |> add (f "R2URUR'U'R'U'R'UR'"))
+  (* get_min_subgroup CubeSet.(singleton (f "U") |> add (f "R2B2RFR'B2RF'R") |> add (f "R2URUR'U'R'U'R'UR'") |> add (f "M'UM'UM'U2MUMUMU2") |> add (f "RU2R'U'RU'R'L'U2LUL'UL")) *)
 
-let () = print_int (CubeSet.cardinal pll_subgroup); print_newline ()
+let _ = print_int (CubeSet.cardinal pll_subgroup); print_newline ()
+
+(** the array [to_fill] must be of length 11 *)
+let collapse_cube (cube: cube) (to_fill: int array): unit =
+  for i = 0 to 10 do
+    to_fill.(i) <- cube.(i * 5 + 0)
+               + 54 * (cube.(i * 5 + 1)
+                + 54 * (cube.(i * 5 + 2)
+                 + 54 * cube.(i * 5 + 3)
+                 )
+                );
+    if i <> 10 then
+      to_fill.(i) <- to_fill.(i) + cube.(i * 5 + 4) * (54 * 54 * 54 * 54);
+  done
+
+let create_collapsed (cube: cube): int array =
+  let to_fill = Array.make 11 0 in
+  collapse_cube cube to_fill;
+  to_fill
+
+let expand_cube (array: int array) (to_fill: cube): unit =
+  for i = 0 to 10 do
+    let n = array.(i) in
+    to_fill.(i * 5 + 0) <- n mod 54;
+    let n = n / 54 in
+    to_fill.(i * 5 + 1) <- n mod 54;
+    let n = n / 54 in
+    to_fill.(i * 5 + 2) <- n mod 54;
+    let n = n / 54 in
+    to_fill.(i * 5 + 3) <- n mod 54;
+    if i <> 10 then
+      let n = n / 54 in
+      to_fill.(i * 5 + 4) <- n mod 54;
+  done
+
+let pp_cube (cube: cube): string =
+  let color (stick: int): char =
+    let l = (stick / 3) in
+    if l < 3 then 'U'
+    else if l > 14 then 'D'
+    else if l = 3 || l = 7 || l = 11 then 'F'
+    else if l = 4 ||l = 8 || l = 12 then 'R'
+    else if  l = 5 || l = 9 || l = 13 then 'B'
+    else 'L'
+  in
+  List.fold_left (fun acc i -> acc ^ 
+    match i with
+    | -1 -> "   "
+    | -2 -> "\n"
+    | i -> " " ^ String.make 1 (color cube.(i)) ^ " ") ""
+  [-1; -1; -1; 0; 1; 2; -2; -1; -1; -1; 3; 4; 5; -2; -1; -1; -1; 6; 7; 8; -2;
+  9; 10; 11; 12; 13; 14; 15; 16; 17; 18; 19; 20; -2;
+  21; 22; 23; 24; 25; 26; 27; 28; 29; 30; 31; 32; -2;
+  33; 34; 35; 36; 37; 38; 39; 40; 41; 42; 43; 44; -2;
+  -1; -1; -1; 45; 46; 47; -2; -1; -1; -1; 48; 49; 50; -2; -1; -1; -1; 51; 52; 53
+  ]

@@ -48,13 +48,14 @@ let fastest_maneuver_opt ?(timeout = 0.0) (move_times: (handed_move, float) Hash
       | None -> acc (* WOOPS, it seems we don't know how to do that ! Let's assume it can be done fast *)
     ) 0.0 alg)
   in
-  let frontier = ref (
-    cross [F] [F; U; D; Bu; Bd; M] @ cross [F; U; D; Bu; Bd; M] [F]
-    |> List.map (fun x -> (0.0, x, alg, 0.0, []))
-    |> cross_f (fun h (a, b, c, d, e) -> (a, b, c, d, e, h)) [R; L]
-    |> List.fold_left (fun acc x -> PrioQueue.insert acc (cost x) x) PrioQueue.empty
-    )
-  and shortest = ref None in
+
+  let frontier = Heap.create () in
+  cross [F] [F; U; D; Bu; Bd; M] @ cross [F; U; D; Bu; Bd; M] [F]
+  |> List.map (fun x -> (0.0, x, alg, 0.0, []))
+  |> cross_f (fun h (a, b, c, d, e) -> (a, b, c, d, e, h)) [R; L]
+  |> List.iter (fun x -> Heap.add (cost x) x frontier);
+
+  let shortest = ref None in
 
   let show_time t hist =
     print_float t;
@@ -69,9 +70,8 @@ let fastest_maneuver_opt ?(timeout = 0.0) (move_times: (handed_move, float) Hash
     | Some (ts, _, _, _, _, _) -> t >= ts
   in
   let start_date = if timeout > 0.0 then Sys.time () else 0.0 in
-  while (!frontier <> Empty && !shortest = None) && (timeout = 0.0 || Sys.time () -. start_date < timeout) do
-    let _, (time, hand_pos, alg, time0, hist, hand), nfrontier = PrioQueue.extract !frontier in
-    frontier := nfrontier;
+  while (Heap.is_empty frontier |> not && !shortest = None) && (timeout = 0.0 || Sys.time () -. start_date < timeout) do
+    let _, (time, hand_pos, alg, time0, hist, hand) = Heap.take_min frontier in
     show_time time hist;
     move_times
     |> List.filter_map (fun (h1, m, h2, t, t0) ->
@@ -93,7 +93,7 @@ let fastest_maneuver_opt ?(timeout = 0.0) (move_times: (handed_move, float) Hash
           shortest := Some me
         )
       ) else
-        frontier := PrioQueue.insert !frontier (cost me) me
+        Heap.add (cost me) me frontier
     )
   done;
   match !shortest with
