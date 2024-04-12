@@ -1,6 +1,6 @@
 # CubeAlgsExplorer
 ## Overview
-This project tries to be a sequel to Herbert Kociemba's Cube Explorer. The goal is to generate algorithms (maneuvers) to solve the rubik's cube from a given position or a set of positions. The point is that CubeAlgsExplorer sorts and filters algorithms based on its estimate on *the time one actually takes to do the maneuver*. This program uses Kociemba's optimal solver in python.
+This project tries to be a sequel to Herbert Kociemba's Cube Explorer. The goal is to generate algorithms (maneuvers) to solve the rubik's cube from a given position or a set of positions. The point is that CubeAlgsExplorer sorts and filters algorithms based on its estimate on *the time one actually takes to do the maneuver*.
 
 ## Notes
 - The project is not yet finished and thus is still not working.
