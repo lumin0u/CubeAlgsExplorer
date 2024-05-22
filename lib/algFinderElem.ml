@@ -56,6 +56,7 @@ let fastest_maneuvers
     (count: int)
     (move_times: (handed_move, float) Hashtbl.t)
     (cube: cube)
+    ((in_ch, out_ch): in_channel * out_channel)
     : (time * maneuver) list =
 
   let shortests = ref [] in
@@ -96,13 +97,6 @@ let fastest_maneuvers
   );
 
   let positions_dist = Hashtbl.create 0 in
-
-  (* setup of the communication with the python server *)
-  let addr = Unix.ADDR_INET (Unix.inet_addr_loopback, 8085) in
-  let sock = Unix.(socket PF_INET SOCK_STREAM 0) in
-  Unix.connect sock addr;
-  let in_ch = Unix.in_channel_of_descr sock
-  and out_ch = Unix.out_channel_of_descr sock in
 
   (* ask the python server for an heuristic of the distance to the solved cube *)
   let ask_dist (cube: cube): int =
@@ -250,8 +244,9 @@ let fastest_maneuver_opt
     ?(heuristic = 0.1)
     (move_times: (handed_move, float) Hashtbl.t)
     (cube: cube)
+    (ch: in_channel * out_channel)
     : (time * maneuver) option =
-  match fastest_maneuvers ~timeout ~heuristic 1 move_times cube with
+  match fastest_maneuvers ~timeout ~heuristic 1 move_times cube ch with
   | [] -> None
   | x::_ -> Some x
 
@@ -260,7 +255,8 @@ let fastest_maneuver
     ?(heuristic = 0.1)
     (move_times: (handed_move, float) Hashtbl.t)
     (cube: cube)
+    (ch: in_channel * out_channel)
     : time * maneuver =
-  match fastest_maneuvers ~heuristic 1 move_times cube with
+  match fastest_maneuvers ~heuristic 1 move_times cube ch with
   | [] -> failwith "erreur erreur erreur (AlgFinderElem.fastest_maneuver)"
   | x::_ -> x

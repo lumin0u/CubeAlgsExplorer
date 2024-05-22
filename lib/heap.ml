@@ -29,8 +29,8 @@ let my_min (a, j) (b, k) =
   if my_compare a b <= 0 then (a, j) else (b, k)
 
 let rec down heap i =
-  let get j = (if j < heap.n then heap.a.(j) else None), j in
-  let m, j = my_min (get (2*i + 1)) (get (2*i + 2)) in
+  let m, j = my_min (let j = 2*i+1 in (if j < heap.n then heap.a.(j) else None), j)
+                    (let j = 2*i+2 in (if j < heap.n then heap.a.(j) else None), j) in
   if my_compare heap.a.(i) m > 0 then (
     swap heap i j;
     down heap j

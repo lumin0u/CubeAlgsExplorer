@@ -4,6 +4,7 @@ open AlgFinderElem
 open Algorithm
 open Permutation
 open Cube
+open AskASolveOpt
 
 open GMain
 open GdkKeysyms
@@ -31,7 +32,7 @@ let maneuver_to_string maneuver =
 
 let app_main () =
   let _ = GMain.init () in
-  let window = GWindow.window ~width:1040 ~height:620
+  let window = GWindow.window ~width:740 ~height:620
                           ~title:"Configuration du profil" () in
   window#connect#destroy ~callback:Main.quit |> ignore;
 
@@ -58,12 +59,12 @@ let app_main () =
   let save_profile_button = GButton.button ~label:"Sauvegarder" ~packing:(line#pack ~padding:5) () in
   
   let line = GPack.hbox ~packing:(vbox#pack ~padding:5) () in
-  let _ = GMisc.label ~packing:(line#pack ~padding:5) ~text:"Aisance U2 droit (unité: nombre de fois U): " () in
+  let _ = GMisc.label ~packing:(line#pack ~padding:5) ~text:"Aisance U2 droit: " () in
   let r_ease_U2 = GData.adjustment ~value:1.2 ~lower:1. ~upper:2. ~page_size:0. ~page_incr:0. () in
   let _ = GRange.scale `HORIZONTAL ~adjustment:r_ease_U2 ~digits:2 ~packing:(line#pack ~expand:true ~padding:5) () in
 
   let line = GPack.hbox ~packing:(vbox#pack ~padding:5) () in
-  let _ = GMisc.label ~packing:(line#pack ~padding:5) ~text:"Aisance U2 gauche (unité: nombre de fois U'): " () in
+  let _ = GMisc.label ~packing:(line#pack ~padding:5) ~text:"Aisance U2 gauche: " () in
   let l_ease_U2 = GData.adjustment ~value:1.2 ~lower:1. ~upper:2. ~page_size:0. ~page_incr:0. () in
   let _ = GRange.scale `HORIZONTAL ~adjustment:l_ease_U2 ~digits:2 ~packing:(line#pack ~expand:true ~padding:5) () in
   
@@ -79,29 +80,32 @@ let app_main () =
   let _' = GRange.scale `HORIZONTAL ~adjustment:ease_M' ~digits:2 ~packing:(line#pack ~expand:true ~padding:5) () in
 
   let line = GPack.hbox ~packing:(vbox#pack ~padding:5) () in
-  let _ = GMisc.label ~packing:(line#pack ~padding:5) ~text:"Aisance M2 (unité: nombre de fois M'): " () in
+  let _ = GMisc.label ~packing:(line#pack ~padding:5) ~text:"Aisance M2: " () in
   let ease_M2 = GData.adjustment ~value:1.2 ~lower:1. ~upper:2. ~page_size:0. ~page_incr:0. () in
   let _ = GRange.scale `HORIZONTAL ~adjustment:ease_M2 ~digits:2 ~packing:(line#pack ~expand:true ~padding:5) () in
 
   let line = GPack.hbox ~packing:(vbox#pack ~padding:5) () in
-  let _ = GMisc.label ~packing:(line#pack ~padding:5) ~text:"Aisance M (unité: nombre de fois M'):  " () in
+  let _ = GMisc.label ~packing:(line#pack ~padding:5) ~text:"Aisance M:  " () in
   let ease_M = GData.adjustment ~value:1.2 ~lower:1. ~upper:2. ~page_size:0. ~page_incr:0. () in
   let _ = GRange.scale `HORIZONTAL ~adjustment:ease_M ~digits:2 ~packing:(line#pack ~expand:true ~padding:5) () in
   
   let line = GPack.hbox ~packing:(vbox#pack ~padding:5) () in
   let delete_profile_button = GButton.button ~label:"Supprimer" ~packing:(line#pack ~padding:5) () in
   let reset_profile_button = GButton.button ~label:"Réinitialiser" ~packing:(line#pack ~padding:5) () in
+  
+  let line = GPack.hbox ~packing:(vbox#pack ~padding:5) () in
   let alg_text_zone = GText.view ~accepts_tab:false ~editable:true ~border_width:2 ~packing:(line#pack ~expand:true ~padding:5) () in
   (* let wait_icon = GMisc.image ~packing:(line#pack ~padding:5) () in *)
-  let test_button = GButton.button ~label:"Test" ~packing:(line#pack ~padding:5) () in
-  (*let stop_button = GButton.button ~label:"Stop" ~packing:(line#pack ~padding:5) () in
-  let stopask_button = GButton.button ~label:"Stop ask" ~packing:(line#pack ~padding:5) () in*)
+  let test_button = GButton.button ~label:"Search" ~packing:(line#pack ~padding:5) () in
+  let stop_button = GButton.button ~label:"Stop" ~packing:(line#pack ~padding:5) () in
+  let stopask_button = GButton.button ~label:"Stop ask" ~packing:(line#pack ~padding:5) () in
 
   let line = GPack.hbox ~packing:(vbox#pack ~padding:5) () in
-  let _ = GMisc.label ~packing:(line#pack ~padding:5) ~text:"Générateur:" () in
+  let _ = GMisc.label ~packing:(line#pack ~padding:5) ~text:"Générateur (FastestManeuver) :" () in
   let result1_text = GText.view ~editable:false ~packing:(line#pack ~padding:5) () in
-  let _ = GMisc.separator `VERTICAL ~packing:(line#pack ~padding:5) () in
-  let _ = GMisc.label ~packing:(line#pack ~padding:5) ~text:"Solution:" () in
+
+  let line = GPack.hbox ~packing:(vbox#pack ~padding:5) () in
+  let _ = GMisc.label ~packing:(line#pack ~padding:5) ~text:"Solutions (AlgFinder) :" () in
   let result2_text = GText.view ~editable:false ~packing:(line#pack ~padding:5) () in
   
   
@@ -184,153 +188,172 @@ let app_main () =
     apply_profile default_profile
   ) |> ignore;
 
-  test_button#connect#clicked ~callback:(fun () ->
-    result1_text#buffer#set_text "...";
-    result2_text#buffer#set_text "...";
 
-    let str = alg_text_zone#buffer#get_text () in
-    let prof = get_current_profile () in
-    let move_times = load_move_times prof in
-    Thread.create (fun () ->
-      let l = AlgEvaluatorElem.fastest_maneuvers ~timeout:2.0 ~heuristic:0.2 1 move_times (parse_e_alg str) (id_rot ()) (id_rot ()) in
-      List.fold_left (fun acc (t, maneuver) ->
-        let alg_str = maneuver_to_string maneuver in
-        acc ^ alg_str ^ string_of_float t ^ "\n"
-      ) "" l
-      |> result1_text#buffer#set_text
-    ) () |> ignore;
+  if false then begin
+    (**********************  ASK ALGS AND EVALUATE  **********************************)
+    (**********************  ASK ALGS AND EVALUATE  **********************************)
+    (**********************  ASK ALGS AND EVALUATE  **********************************)
+    (**********************  ASK ALGS AND EVALUATE  **********************************)
+    test_button#set_sensitive true;
 
-    Thread.create (fun () -> (* RUR'U'R'FR2U'R'U'RUR'F'  ~quotient_group:pll_subgroup  *)
-      let cube = cube_from_alg (parse_alg str) in
-      let l = fastest_maneuvers ~heuristic:0.1 5 move_times (inverse_cube cube) in
-      List.fold_left (fun acc (t, maneuver) ->
-        let alg_str = maneuver_to_string maneuver in
-        acc ^ alg_str ^ string_of_float t ^ "\n"
-      ) "" l
-      |> result2_text#buffer#set_text
-    ) () |> ignore;
-  ) |> ignore;
+    let computer_stop = ref false in
+    let asker_stop = ref false in
+    let terminator = ref ignore in
+    let asker_thread = ref None in
+    let computer_thread = ref None in
 
-  window#show ();
-  GMain.main ()
+    test_button#connect#clicked ~callback:(fun () ->
+      result1_text#buffer#set_text "...";
+      result2_text#buffer#set_text "...";
 
-let _ = app_main ()
+      let str = alg_text_zone#buffer#get_text () in
+      let prof = get_current_profile () in
+      let move_times = load_move_times prof in
+      Thread.create (fun () ->
+        let t, hist = AlgEvaluatorElem.fastest_maneuver move_times (parse_alg str |> elementalize_no_rot) (id_rot ()) (id_rot ()) in
+        let alg_str = (List.fold_left (fun acc (_, a, _) -> acc ^ alg_to_string a ^ " ") "" hist) in
+        result1_text#buffer#set_text (alg_str ^ " (" ^ string_of_float t ^ " s)")
+      ) () |> ignore;
+      
+      
+      let algs = ref [] in
+      let cube = cube_from_alg (parse_alg str |> inverse_alg) in
+      let finished = ref false in
+      let to_chain_queue = Queue.create () in
+      let algs_seen = ref EAlgSet.empty in
+      let lock = Mutex.create () in
+      
+      test_button#set_sensitive false;
 
-(*  
-   test_button#set_sensitive true;
-
-  let computer_stop = ref false in
-  let asker_stop = ref false in
-  let terminator = ref ignore in
-  let asker_thread = ref None in
-  let computer_thread = ref None in
-
-  test_button#connect#clicked ~callback:(fun () ->
-    result1_text#buffer#set_text "...";
-    result2_text#buffer#set_text "...";
-
-    let str = alg_text_zone#buffer#get_text () in
-    let prof = get_current_profile () in
-    let move_times = load_move_times prof in
-    Thread.create (fun () ->
-      let t, _, hist = fastest_maneuver move_times (parse_alg str |> elementalize_no_rot) (id_rot ()) (id_rot ()) in
-      let alg_str = (List.fold_left (fun acc (_, a, _) -> acc ^ alg_to_string a ^ " ") "" hist) in
-      result1_text#buffer#set_text (alg_str ^ string_of_float t)
-    ) () |> ignore;
-    
-    
-    let algs = ref [] in
-    let cube = cube_from_alg (parse_alg str |> inverse_alg) in
-    let finished = ref false in
-    let to_chain_queue = Queue.create () in
-    let algs_seen = ref EAlgSet.empty in
-    let lock = Mutex.create () in
-    
-    test_button#set_sensitive false;
-    wait_icon#set_stock GtkStock.(`CDROM);
-
-    computer_thread := Some (Thread.create (fun () ->
-      while (not !finished || not (Queue.is_empty to_chain_queue)) && not !computer_stop do
-        Mutex.lock lock;
-        match Queue.take_opt to_chain_queue with
-        | None -> Mutex.unlock lock; Thread.delay 0.5
-        | Some x ->
-          Mutex.unlock lock;
-          begin
-            print_endline ("alg " ^ e_alg_to_string ~space:false x ^ " : ");
-            fastest_maneuvers ~timeout:0.3 ~heuristic:0.165 5 move_times x (id_rot ()) (id_rot ())
-            |> List.iter (fun (t, _, maneuver) ->
-              let alg_str = 
-                List.fold_left (fun acc (h1, a, h2) ->
-                  (if acc = "" then ("[" ^ hand_pos_to_string h1 ^ "] ") else acc) ^
-                  (if a = [] then "[" ^ hand_pos_to_string h2 ^ "]" else alg_to_string a) ^ " "
-                ) "" maneuver
-              in
-              print_endline (" computed " ^ alg_str ^ " for " ^ string_of_float t);
-              let me = (alg_str, t) in
-              let rec insert_me (l: (string * float) list) =
-                match l with
-                | [] -> [me]
-                | (s, t')::q ->
-                  if s = alg_str then
-                    if t < t' then me::q
-                    else l
-                  else
-                    if t < t' then me::l
-                    else (s, t')::insert_me q
-              in
-              algs := insert_me !algs;
-              let res_txt = List.fold_left (fun acc (alg, t) -> acc ^ alg ^ string_of_float t ^ "\n") "" !algs in
-              result2_text#buffer#set_text res_txt
-              );
-            print_endline ("alg done")
-          end;
-      done;
-      test_button#set_sensitive true;
-      wait_icon#set_stock GtkStock.(`YES)
-    ) ());
-    let thr, term = ask_solves_async cube 20 (fun solution ->
-      let solution = e_simplify solution in
-      if not (EAlgSet.mem solution !algs_seen) then
-        begin
-          print_endline ("received " ^ e_alg_to_string solution);
+      computer_thread := Some (Thread.create (fun () ->
+        while (not !finished || not (Queue.is_empty to_chain_queue)) && not !computer_stop do
           Mutex.lock lock;
-          Queue.add solution to_chain_queue;
-          algs_seen := EAlgSet.add solution !algs_seen;
-          Mutex.unlock lock;
-        end;
-      not !asker_stop
-    ) (fun () -> finished := true)
-    in
-    asker_thread := Some thr;
-    terminator := term
-  ) |> ignore;
+          match Queue.take_opt to_chain_queue with
+          | None -> Mutex.unlock lock; Thread.delay 0.5
+          | Some x ->
+            Mutex.unlock lock;
+            begin
+              print_endline ("alg " ^ e_alg_to_string ~space:false x ^ " : ");
+              AlgEvaluatorElem.fastest_maneuvers ~timeout:0.3 ~heuristic:0.165 5 move_times x (id_rot ()) (id_rot ())
+              |> List.iter (fun (t, maneuver) ->
+                let alg_str = 
+                  List.fold_left (fun acc (h1, a, h2) ->
+                    (if acc = "" then ("[" ^ hand_pos_to_string h1 ^ "] ") else acc) ^
+                    (if a = [] then "[" ^ hand_pos_to_string h2 ^ "]" else alg_to_string a) ^ " "
+                  ) "" maneuver
+                in
+                print_endline (" computed " ^ alg_str ^ " for " ^ string_of_float t);
+                let me = (alg_str, t) in
+                let rec insert_me (l: (string * float) list) =
+                  match l with
+                  | [] -> [me]
+                  | (s, t')::q ->
+                    if s = alg_str then
+                      if t < t' then me::q
+                      else l
+                    else
+                      if t < t' then me::l
+                      else (s, t')::insert_me q
+                in
+                algs := insert_me !algs;
+                let res_txt = List.fold_left (fun acc (alg, t) ->
+                  acc ^ (if acc = "" then "" else "\n") ^ alg ^ " (" ^ string_of_float t ^ " s)"
+                  ) "" !algs in
+                result2_text#buffer#set_text res_txt
+                );
+              print_endline ("alg done")
+            end;
+        done;
+        test_button#set_sensitive true
+      ) ());
+      let thr, term = ask_solves_async cube 20 (fun solution ->
+        let solution = e_simplify solution in
+        if not (EAlgSet.mem solution !algs_seen) then
+          begin
+            print_endline ("received " ^ e_alg_to_string solution);
+            Mutex.lock lock;
+            Queue.add solution to_chain_queue;
+            algs_seen := EAlgSet.add solution !algs_seen;
+            Mutex.unlock lock;
+          end;
+        not !asker_stop
+      ) (fun () -> finished := true)
+      in
+      asker_thread := Some thr;
+      terminator := term
+    ) |> ignore;
 
-  stop_button#connect#clicked ~callback:(fun () ->
-    computer_stop := true;
-    match !computer_thread with
-    | None -> ()
-    | Some thr -> Thread.join thr;
-    computer_thread := None;
-    computer_stop := false;
+    stop_button#connect#clicked ~callback:(fun () ->
+      computer_stop := true;
+      match !computer_thread with
+      | None -> ()
+      | Some thr -> Thread.join thr;
+      computer_thread := None;
+      computer_stop := false;
 
-    !terminator ();
-    terminator := ignore;
-    asker_stop := true;
-    match !asker_thread with
-    | None -> ()
-    | Some thr -> Thread.join thr;
-    asker_thread := None;
-    asker_stop := false
-
-  ) |> ignore;
-  stopask_button#connect#clicked ~callback:(fun () ->
       !terminator ();
       terminator := ignore;
       asker_stop := true;
       match !asker_thread with
       | None -> ()
       | Some thr -> Thread.join thr;
+      asker_thread := None;
       asker_stop := false
+
     ) |> ignore;
-*)
+    stopask_button#connect#clicked ~callback:(fun () ->
+        !terminator ();
+        terminator := ignore;
+        asker_stop := true;
+        match !asker_thread with
+        | None -> ()
+        | Some thr -> Thread.join thr;
+        asker_stop := false
+      ) |> ignore;
+  end
+  else begin
+    (**********************  FIND ALGS  **********************************)
+    (**********************  FIND ALGS  **********************************)
+    (**********************  FIND ALGS  **********************************)
+    (**********************  FIND ALGS  **********************************)
+    test_button#connect#clicked ~callback:(fun () ->
+      result1_text#buffer#set_text "...";
+      result2_text#buffer#set_text "...";
+
+      let str = alg_text_zone#buffer#get_text () in
+      let prof = get_current_profile () in
+      let move_times = load_move_times prof in
+      Thread.create (fun () ->
+        let l = AlgEvaluatorElem.fastest_maneuvers ~timeout:2.0 ~heuristic:0.2 1 move_times (parse_e_alg str) (id_rot ()) (id_rot ()) in
+        List.fold_left (fun acc (t, maneuver) ->
+          let alg_str = maneuver_to_string maneuver in
+          acc ^ (if acc = "" then "" else "\n") ^ alg_str ^ "  (" ^ string_of_float t ^ " s)"
+        ) "" l
+        |> result1_text#buffer#set_text
+      ) () |> ignore;
+
+      Thread.create (fun () -> (* RUR'U'R'FR2U'R'U'RUR'F'  ~quotient_group:pll_subgroup  *)
+
+        (* setup of the communication with the python server *)
+        let addr = Unix.ADDR_INET (Unix.inet_addr_loopback, 8085) in
+        let sock = Unix.(socket PF_INET SOCK_STREAM 0) in
+        Unix.connect sock addr;
+        let in_ch = Unix.in_channel_of_descr sock
+        and out_ch = Unix.out_channel_of_descr sock in
+
+
+        let cube = cube_from_alg (parse_alg str) in
+        let l = fastest_maneuvers ~heuristic:0.1 ~quotient_group:pll_subgroup 1 move_times (inverse_cube cube) (in_ch, out_ch) in
+        List.fold_left (fun acc (t, maneuver) ->
+          let alg_str = maneuver_to_string maneuver in
+          acc ^ (if acc = "" then "" else "\n") ^ alg_str ^ "  (" ^ string_of_float t ^ " s)"
+        ) "" l
+        |> result2_text#buffer#set_text
+      ) () |> ignore;
+    ) |> ignore;
+  end;
+
+  window#show ();
+  GMain.main ()
+
+let _ = app_main ()

@@ -1,6 +1,7 @@
 open Rubiks_cube
 open Algorithm
 open Permutation
+open Cube
 
 let ask_solves_async (cube: cube) (depth: int) (callback: e_alg -> bool) (finish: unit -> unit): Thread.t * (unit -> unit) =
   let addr = Unix.ADDR_INET (Unix.inet_addr_loopback, 8085) in
